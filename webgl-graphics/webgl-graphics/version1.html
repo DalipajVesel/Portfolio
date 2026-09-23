@@ -1,0 +1,286 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<meta charset="UTF-8">
+<script src="webgl-debug.js"></script>
+<script src="gl-matrix-min.js"></script>
+
+<script id="vShader" type="x-shader/x-vertex">
+attribute vec4 aVertexPosition;
+attribute vec4 aVertexColor;
+uniform mat4 uModelTransform;
+uniform mat4 uPerspectiveViewTransform;
+varying vec4 vColor;
+void main() {
+	gl_Position =  uPerspectiveViewTransform * uModelTransform * aVertexPosition;
+	vColor = aVertexColor;
+}
+</script>
+
+<script id="fShader" type="x-shader/x-fragment">
+precision mediump float;
+varying vec4 vColor;
+void main() {
+	gl_FragColor = vColor;
+}
+</script>
+
+<script>
+var gl;
+var canvas;
+var shadersProgram;
+var vertexPositionAttributePointer;
+var vertexColorAttributePointer;
+var modelUniformPointer;
+var perspectiveViewUniformPointer;
+var vertexBuffer;
+var colorBuffer;
+var indexBuffer;
+var finalMatrix = new Float32Array(16);
+var perspectiveMatrix = new Float32Array(16);
+var viewMatrix = new Float32Array(16);
+var pvMatrix = new Float32Array(16);
+
+var viewAngle = 60.0; // γωνία θέασης 
+var camPosition = [9.0, 9.0, 9.0]; // θέση κάμερας
+var camOrthoDistance = 9.0; // ορθογώνια απόσταση
+
+
+function createGLContext(inCanvas) {
+	var outContext = null;
+	outContext = inCanvas.getContext("webgl");
+		if (!outContext)
+			outContext = inCanvas.getContext("experimental-webgl");
+		if (!outContext)
+			alert("WebGL rendering context creation error.");
+
+	return outContext;
+}
+
+function createCompileShader(shaderType, shaderSource) {
+	var outShader = gl.createShader(shaderType);
+	gl.shaderSource(outShader, shaderSource);
+	gl.compileShader(outShader);
+	if (!gl.getShaderParameter(outShader, gl.COMPILE_STATUS)) {
+		alert( "Shader compilation error. " + gl.getShaderInfoLog(outShader) );
+		gl.deleteShader(outShader);
+		outShader = null;
+	}
+	return outShader;
+}
+
+function initShaders() {
+	var vertexShaderSource = document.getElementById("vShader").textContent;
+	var fragmentShaderSource = document.getElementById("fShader").textContent;
+	var vertexShader = createCompileShader(gl.VERTEX_SHADER, vertexShaderSource);
+	var fragmentShader = createCompileShader(gl.FRAGMENT_SHADER, fragmentShaderSource);
+	shadersProgram = gl.createProgram();
+	gl.attachShader(shadersProgram, vertexShader);
+	gl.attachShader(shadersProgram, fragmentShader);
+	gl.linkProgram(shadersProgram);
+	if (!gl.getProgramParameter(shadersProgram, gl.LINK_STATUS)) {
+		alert("Shaders linking error.");
+	}
+	gl.useProgram(shadersProgram);
+	vertexPositionAttributePointer = gl.getAttribLocation(shadersProgram, "aVertexPosition");
+	gl.enableVertexAttribArray(vertexPositionAttributePointer);
+	vertexColorAttributePointer = gl.getAttribLocation(shadersProgram, "aVertexColor");
+	gl.enableVertexAttribArray(vertexColorAttributePointer);
+	modelUniformPointer = gl.getUniformLocation(shadersProgram, "uModelTransform");
+	perspectiveViewUniformPointer = gl.getUniformLocation(shadersProgram, "uPerspectiveViewTransform");
+}
+
+function initBuffers() {
+	// Κορυφές κύβου, 24 κορυφές με 4 συντεταγμένες ανά κορυφή
+	var cubeVertices = new Float32Array([
+		// Όψη A μπροστά y = +0.5
+		-0.5,  0.5, -0.5, 1.0,
+		 0.5,  0.5, -0.5, 1.0,
+		 0.5,  0.5,  0.5, 1.0,
+		-0.5,  0.5,  0.5, 1.0,
+		// Όψη B πίσω y = -0.5
+		 0.5, -0.5, -0.5, 1.0,
+		-0.5, -0.5, -0.5, 1.0,
+		-0.5, -0.5,  0.5, 1.0,
+		 0.5, -0.5,  0.5, 1.0,
+		// Όψη C δεξιά x = +0.5
+		 0.5,  0.5, -0.5, 1.0,
+		 0.5, -0.5, -0.5, 1.0,
+		 0.5, -0.5,  0.5, 1.0,
+		 0.5,  0.5,  0.5, 1.0,
+		// Όψη D αριστερά x = -0.5
+		-0.5, -0.5, -0.5, 1.0,
+		-0.5,  0.5, -0.5, 1.0,
+		-0.5,  0.5,  0.5, 1.0,
+		-0.5, -0.5,  0.5, 1.0,
+		// Όψη E πάνω z = +0.5
+		-0.5,  0.5,  0.5, 1.0,
+		 0.5,  0.5,  0.5, 1.0,
+		 0.5, -0.5,  0.5, 1.0,
+		-0.5, -0.5,  0.5, 1.0,
+		// Όψη F κάτω z = -0.5
+		-0.5, -0.5, -0.5, 1.0,
+		 0.5, -0.5, -0.5, 1.0,
+		 0.5,  0.5, -0.5, 1.0,
+		-0.5,  0.5, -0.5, 1.0
+	]);
+	vertexBuffer = gl.createBuffer();
+	gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+	gl.bufferData(gl.ARRAY_BUFFER, cubeVertices, gl.STATIC_DRAW);
+	vertexBuffer.itemSize = 4;
+	vertexBuffer.itemCount = 24;
+
+	// Χρωματα οψεων
+	var cubeColors = new Float32Array([
+		// Όψη A κόκκινο
+		1.0, 0.0, 0.0, 1.0,
+		1.0, 0.0, 0.0, 1.0,
+		1.0, 0.0, 0.0, 1.0,
+		1.0, 0.0, 0.0, 1.0,
+		// Όψη B πράσινο
+		0.0, 1.0, 0.0, 1.0,
+		0.0, 1.0, 0.0, 1.0,
+		0.0, 1.0, 0.0, 1.0,
+		0.0, 1.0, 0.0, 1.0,
+		// Όψη C μπλε
+		0.2, 0.4, 1.0, 1.0,
+		0.2, 0.4, 1.0, 1.0,
+		0.2, 0.4, 1.0, 1.0,
+		0.2, 0.4, 1.0, 1.0,
+		// Όψη D κίτρινο
+		1.0, 1.0, 0.0, 1.0,
+		1.0, 1.0, 0.0, 1.0,
+		1.0, 1.0, 0.0, 1.0,
+		1.0, 1.0, 0.0, 1.0,
+		// Όψη E ματζέντα
+		1.0, 0.0, 1.0, 1.0,
+		1.0, 0.0, 1.0, 1.0,
+		1.0, 0.0, 1.0, 1.0,
+		1.0, 0.0, 1.0, 1.0,
+		// Όψη F κυανό
+		0.0, 1.0, 1.0, 1.0,
+		0.0, 1.0, 1.0, 1.0,
+		0.0, 1.0, 1.0, 1.0,
+		0.0, 1.0, 1.0, 1.0
+	]);
+	colorBuffer = gl.createBuffer();
+	gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+	gl.bufferData(gl.ARRAY_BUFFER, cubeColors, gl.STATIC_DRAW);
+	colorBuffer.itemSize = 4;
+	colorBuffer.itemCount = 24;
+
+	// Ορισμός τριγώνων για καθε όψη
+	var indexMatrix = new Uint16Array([
+		 0,  1,  2,   0,  2,  3,   // Όψη A
+		 4,  5,  6,   4,  6,  7,   // Όψη B
+		 8,  9, 10,   8, 10, 11,   // Όψη C
+		12, 13, 14,  12, 14, 15,   // Όψη D
+		16, 17, 18,  16, 18, 19,   // Όψη E
+		20, 21, 22,  20, 22, 23    // Όψη F
+	]);
+	indexBuffer = gl.createBuffer();
+	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indexMatrix, gl.STATIC_DRAW);
+	indexBuffer.itemCount = 36;
+}
+
+function drawScene() {
+	// Τοποθέτηση κάμερας 
+	glMatrix.mat4.lookAt(viewMatrix, camPosition, [0,0,0], [0,0,1]);
+
+	// Προβολή προοπτικής
+	var farPlane = 100 * camOrthoDistance;
+	if (farPlane < 9000) farPlane = 9000;
+	glMatrix.mat4.perspective(perspectiveMatrix, viewAngle*Math.PI/180.0, 1, 0.0001, farPlane);
+	glMatrix.mat4.multiply(pvMatrix, perspectiveMatrix, viewMatrix);
+	gl.uniformMatrix4fv(perspectiveViewUniformPointer, false, pvMatrix);
+
+	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+	// Σχεδίαση κύβου
+	gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+	gl.vertexAttribPointer(vertexPositionAttributePointer, vertexBuffer.itemSize, gl.FLOAT, false, 0, 0);
+	gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+	gl.vertexAttribPointer(vertexColorAttributePointer, colorBuffer.itemSize, gl.FLOAT, false, 0, 0);
+	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+
+	glMatrix.mat4.identity(finalMatrix);
+	gl.uniformMatrix4fv(modelUniformPointer, false, finalMatrix);
+	gl.drawElements(gl.TRIANGLES, indexBuffer.itemCount, gl.UNSIGNED_SHORT, 0);
+}
+
+function main() {
+	minDimension = Math.min(window.innerHeight, window.innerWidth);
+	canvas = document.getElementById("sceneCanvas");
+	canvas.width = 0.9*minDimension;
+	canvas.height = 0.9*minDimension;
+	gl = WebGLDebugUtils.makeDebugContext(createGLContext(canvas));
+	initShaders();
+	initBuffers();
+	// Σκούρο μπλε φόντο 
+	gl.clearColor(0.0, 0.0, 0.15, 1.0);
+	gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+	gl.enable(gl.DEPTH_TEST);
+	drawScene();
+}
+
+// Επανασχεδίαση της σκηνής με νέα δεδομένα
+function redraw() {
+	// Διάβασε τη γωνία θέασης
+	var txtViewAngle;
+	txtViewAngle = document.getElementById("viewAngleTxt").value;
+	var numViewAngle = parseFloat(txtViewAngle);
+	viewAngle = numViewAngle;
+
+	// Διάβασε την ορθογώνια απόσταση κάμερας
+	var txtCamOrthoDistance;
+	txtCamOrthoDistance = document.getElementById("camOrthoDistanceTxt").value;
+	var numCamOrthoDistance = parseFloat(txtCamOrthoDistance);
+	camOrthoDistance = numCamOrthoDistance;
+
+	// Διάβασε ποιο radio είναι επιλεγμένο
+	var radios = document.getElementsByName("camPos");
+	var sel = null;
+	for (var i = 0; i < radios.length; i++)
+		if (radios[i].checked) { sel = radios[i].value; break; }
+
+	var D = camOrthoDistance;
+	switch(sel) {
+		case "LFT": camPosition = [-D,  D,  D]; break;
+		case "LFB": camPosition = [-D,  D, -D]; break;
+		case "LBT": camPosition = [-D, -D,  D]; break;
+		case "LBB": camPosition = [-D, -D, -D]; break;
+		case "RFT": camPosition = [ D,  D,  D]; break;
+		case "RFB": camPosition = [ D,  D, -D]; break;
+		case "RBT": camPosition = [ D, -D,  D]; break;
+		case "RBB": camPosition = [ D, -D, -D]; break;
+	}
+
+	drawScene();
+}
+ </script>
+
+ </head>
+
+<body onload="main()">
+<canvas id="sceneCanvas"></canvas>
+<p>
+Γωνία θέασης:
+<input type="text" id="viewAngleTxt" value="60" autocomplete="off">
+Ορθογώνια απόσταση κάμερας:
+<input type="text" id="camOrthoDistanceTxt" value="9" autocomplete="off">
+<br><br>
+Θέση κάμερας:
+<input type="radio" name="camPos" value="LFT"> Left-Front-Top
+<input type="radio" name="camPos" value="LFB"> Left-Front-Bottom
+<input type="radio" name="camPos" value="LBT"> Left-Back-Top
+<input type="radio" name="camPos" value="LBB"> Left-Back-Bottom
+<input type="radio" name="camPos" value="RFT" checked> Right-Front-Top
+<input type="radio" name="camPos" value="RFB"> Right-Front-Bottom
+<input type="radio" name="camPos" value="RBT"> Right-Back-Top
+<input type="radio" name="camPos" value="RBB"> Right-Back-Bottom
+<br><br>
+<button onclick="redraw()">Επανασχεδίαση</button>
+</p>
+</body>
+</html>

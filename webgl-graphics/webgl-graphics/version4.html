@@ -1,0 +1,903 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<meta charset="UTF-8">
+<script src="webgl-debug.js"></script>
+<script src="gl-matrix-min.js"></script>
+
+<script id="vShader" type="x-shader/x-vertex">
+attribute vec4 aVertexPosition;
+attribute vec2 aTextureCoordinates;
+uniform mat4 uModelTransform;
+uniform mat4 uPerspectiveViewTransform;
+varying vec2 vTextureCoordinates;
+void main() {
+	gl_Position = uPerspectiveViewTransform * uModelTransform * aVertexPosition;
+	vTextureCoordinates = aTextureCoordinates;
+}
+</script>
+
+<script id="fShader" type="x-shader/x-fragment">
+precision mediump float;
+varying vec2 vTextureCoordinates;
+uniform sampler2D uSampler;
+void main() {
+	gl_FragColor = texture2D(uSampler, vTextureCoordinates);
+}
+</script>
+
+<script>
+var gl;
+var canvas;
+var shadersProgram;
+var vertexPositionAttributePointer;
+var textureCoordinatesAttributePointer;
+var modelUniformPointer;
+var perspectiveViewUniformPointer;
+var uSamplerPointer;
+var vertexBuffer;
+var indexBuffer;
+var floorVBuffer;
+var floorIBuffer;
+var simpleTextureBuffer; // απλό (0,1)x(0,1) για κάθε όψη του κύβου
+var headTextureBuffer; // atlas 3x2 για το κεφάλι (6 διαφορετικές περιοχές)
+var floorTextureBuffer; // (0,1)x(0,1) για το πάτωμα
+var bodyTexture;
+var headTexture;
+var skyTexture;
+var floorTexture;
+var scalingMatrix = new Float32Array(16);
+var translationMatrix = new Float32Array(16);
+var finalMatrix = new Float32Array(16);
+var perspectiveMatrix = new Float32Array(16);
+var viewMatrix = new Float32Array(16);
+var pvMatrix = new Float32Array(16);
+
+var viewAngle = 60.0; // γωνία θέασης 
+var camOrthoDistance = 30.0; // ορθογώνια απόσταση
+
+var requestID = 0;
+var totalAngle = Math.PI/4; // γωνία περιστροφής της κάμερας
+var totalZ = 30.0; // ύψος κάμερας
+var zDirection = 1; // για ανέβα-κατέβα στο ύψος
+var stepAngle = 1.5; // βήμα γωνίας
+var stepZ = 0.15; // βήμα ύψους
+var camRadius = 30.0 * Math.sqrt(2);
+
+var mouseDown = false;
+var deltaFresh = false;
+var lastMouseX = null;
+var lastMouseY = null;
+var currMouseX = null;
+var currMouseY = null;
+var deltaMouseX = 0;
+var deltaMouseY = 0;
+var rect;
+
+var wheelMode = "tail";
+
+var tailAngle = 0;
+var tailDir = 1;
+var headAngle = 0;
+var headDir = 1;
+var rightLegAngle = 0;
+var rightLegDir = 1;
+var leftLegAngle = 0;
+var leftLegDir = 1;
+var playDeadAngle = 0;
+var playDeadDir = 1;
+var situpAngle = 0;
+var situpDir = 1;
+var greyhoundProgress = 0.0;   // 0..1: επιμήκυνση ποδιών, 1..2: ("σε δεύτερο χρόνο") επιμήκυνση κορμού
+var greyhoundDir = 1;
+var greyhoundMaxFactor = 2.5;  // ο (κοινός) συντελεστής επιμήκυνσης ποδιών και κορμού
+var greyhoundCycles = 0;
+var reverseLegAngle = 0;
+var reverseLegDir = 1;
+var reverseY = 0;
+
+var easterEggActive = false;
+var headInflate = 1.0;
+var earInflate = 1.0;
+var earRotation = 0;
+var easterPhase = 0;
+
+
+function createGLContext(inCanvas) {
+	var outContext = null;
+	outContext = inCanvas.getContext("webgl");
+		if (!outContext)
+			outContext = inCanvas.getContext("experimental-webgl");
+		if (!outContext)
+			alert("WebGL rendering context creation error.");
+
+	return outContext;
+}
+
+function createCompileShader(shaderType, shaderSource) {
+	var outShader = gl.createShader(shaderType);
+	gl.shaderSource(outShader, shaderSource);
+	gl.compileShader(outShader);
+	if (!gl.getShaderParameter(outShader, gl.COMPILE_STATUS)) {
+		alert( "Shader compilation error. " + gl.getShaderInfoLog(outShader) );
+		gl.deleteShader(outShader);
+		outShader = null;
+	}
+	return outShader;
+}
+
+function initShaders() {
+	var vertexShaderSource = document.getElementById("vShader").textContent;
+	var fragmentShaderSource = document.getElementById("fShader").textContent;
+	var vertexShader = createCompileShader(gl.VERTEX_SHADER, vertexShaderSource);
+	var fragmentShader = createCompileShader(gl.FRAGMENT_SHADER, fragmentShaderSource);
+	shadersProgram = gl.createProgram();
+	gl.attachShader(shadersProgram, vertexShader);
+	gl.attachShader(shadersProgram, fragmentShader);
+	gl.linkProgram(shadersProgram);
+	if (!gl.getProgramParameter(shadersProgram, gl.LINK_STATUS)) {
+		alert("Shaders linking error.");
+	}
+	gl.useProgram(shadersProgram);
+	vertexPositionAttributePointer = gl.getAttribLocation(shadersProgram, "aVertexPosition");
+	gl.enableVertexAttribArray(vertexPositionAttributePointer);
+	textureCoordinatesAttributePointer = gl.getAttribLocation(shadersProgram, "aTextureCoordinates");
+	gl.enableVertexAttribArray(textureCoordinatesAttributePointer);
+	modelUniformPointer = gl.getUniformLocation(shadersProgram, "uModelTransform");
+	perspectiveViewUniformPointer = gl.getUniformLocation(shadersProgram, "uPerspectiveViewTransform");
+	uSamplerPointer = gl.getUniformLocation(shadersProgram, "uSampler");
+}
+
+function preprocessTextureImage(imageURL, textureObject) {
+	var imageObject = new Image();
+
+	imageObject.onload = function() {
+		gl.bindTexture(gl.TEXTURE_2D, textureObject);
+		gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imageObject);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
+		gl.generateMipmap(gl.TEXTURE_2D);
+		drawScene();
+	};
+	imageObject.src = imageURL;
+}
+
+function initBuffers() {
+	// Κορυφές κύβου, 24 κορυφές με 4 συντεταγμένες ανά κορυφή
+	var cubeVertices = new Float32Array([
+		// Όψη A μπροστά y = +0.5
+		-0.5,  0.5, -0.5, 1.0,
+		 0.5,  0.5, -0.5, 1.0,
+		 0.5,  0.5,  0.5, 1.0,
+		-0.5,  0.5,  0.5, 1.0,
+		// Όψη B πίσω y = -0.5
+		 0.5, -0.5, -0.5, 1.0,
+		-0.5, -0.5, -0.5, 1.0,
+		-0.5, -0.5,  0.5, 1.0,
+		 0.5, -0.5,  0.5, 1.0,
+		// Όψη C δεξιά x = +0.5
+		 0.5,  0.5, -0.5, 1.0,
+		 0.5, -0.5, -0.5, 1.0,
+		 0.5, -0.5,  0.5, 1.0,
+		 0.5,  0.5,  0.5, 1.0,
+		// Όψη D αριστερά x = -0.5
+		-0.5, -0.5, -0.5, 1.0,
+		-0.5,  0.5, -0.5, 1.0,
+		-0.5,  0.5,  0.5, 1.0,
+		-0.5, -0.5,  0.5, 1.0,
+		// Όψη E πάνω z = +0.5
+		-0.5,  0.5,  0.5, 1.0,
+		 0.5,  0.5,  0.5, 1.0,
+		 0.5, -0.5,  0.5, 1.0,
+		-0.5, -0.5,  0.5, 1.0,
+		// Όψη F κάτω z = -0.5
+		-0.5, -0.5, -0.5, 1.0,
+		 0.5, -0.5, -0.5, 1.0,
+		 0.5,  0.5, -0.5, 1.0,
+		-0.5,  0.5, -0.5, 1.0
+	]);
+	vertexBuffer = gl.createBuffer();
+	gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+	gl.bufferData(gl.ARRAY_BUFFER, cubeVertices, gl.STATIC_DRAW);
+	vertexBuffer.itemSize = 4;
+	vertexBuffer.itemCount = 24;
+
+	// Απλοί δείκτες υφής - όλη η εικόνα σε κάθε όψη (για το σώμα/σκύλο, skybox)
+	var simpleUV = new Float32Array([
+		0.0, 0.0,  1.0, 0.0,  1.0, 1.0,  0.0, 1.0,   // Όψη A
+		0.0, 0.0,  1.0, 0.0,  1.0, 1.0,  0.0, 1.0,   // Όψη B
+		0.0, 0.0,  1.0, 0.0,  1.0, 1.0,  0.0, 1.0,   // Όψη C
+		0.0, 0.0,  1.0, 0.0,  1.0, 1.0,  0.0, 1.0,   // Όψη D
+		0.0, 0.0,  1.0, 0.0,  1.0, 1.0,  0.0, 1.0,   // Όψη E
+		0.0, 0.0,  1.0, 0.0,  1.0, 1.0,  0.0, 1.0    // Όψη F
+	]);
+	simpleTextureBuffer = gl.createBuffer();
+	gl.bindBuffer(gl.ARRAY_BUFFER, simpleTextureBuffer);
+	gl.bufferData(gl.ARRAY_BUFFER, simpleUV, gl.STATIC_DRAW);
+	simpleTextureBuffer.itemSize = 2;
+
+	// Atlas για το κεφάλι (3 στήλες x 2 γραμμές)
+	// Διάταξη εικόνας (μετά το flip Y στη φόρτωση, v=1 ταυτίζεται με την επάνω γραμμή):
+	//   Επάνω γραμμή (v: 0.5..1):  [front] [back] [top]
+	//   Κάτω γραμμή  (v: 0..0.5):  [bottom][left] [right]
+	// Σειρά κορυφών: front, back, right, left, top, bottom (όπως πιο πάνω)
+	var u1 = 1.0/3.0;
+	var u2 = 2.0/3.0;
+	var headUV = [
+		// Όψη A: front (μύτη) - περιοχή [0,u1] x [0.5,1]
+		0.0, 0.5,  u1, 0.5,  u1, 1.0,  0.0, 1.0,
+		// Όψη B: back - περιοχή [u1,u2] x [0.5,1]
+		u1, 0.5,  u2, 0.5,  u2, 1.0,  u1, 1.0,
+		// Όψη C: right - περιοχή [u2,1] x [0,0.5]
+		u2, 0.0,  1.0, 0.0,  1.0, 0.5,  u2, 0.5,
+		// Όψη D: left - περιοχή [u1,u2] x [0,0.5]
+		u1, 0.0,  u2, 0.0,  u2, 0.5,  u1, 0.5,
+		// Όψη E: top (μάτια) - περιοχή [u2,1] x [0.5,1]
+		u2, 0.5,  1.0, 0.5,  1.0, 1.0,  u2, 1.0,
+		// Όψη F: bottom (στόμα) - περιοχή [0,u1] x [0,0.5]
+		0.0, 0.0,  u1, 0.0,  u1, 0.5,  0.0, 0.5
+	];
+	headTextureBuffer = gl.createBuffer();
+	gl.bindBuffer(gl.ARRAY_BUFFER, headTextureBuffer);
+	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(headUV), gl.STATIC_DRAW);
+	headTextureBuffer.itemSize = 2;
+
+	// Ορισμός τριγώνων για καθε όψη
+	var indexMatrix = new Uint16Array([
+		 0,  1,  2,   0,  2,  3,   // Όψη A
+		 4,  5,  6,   4,  6,  7,   // Όψη B
+		 8,  9, 10,   8, 10, 11,   // Όψη C
+		12, 13, 14,  12, 14, 15,   // Όψη D
+		16, 17, 18,  16, 18, 19,   // Όψη E
+		20, 21, 22,  20, 22, 23    // Όψη F
+	]);
+	indexBuffer = gl.createBuffer();
+	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indexMatrix, gl.STATIC_DRAW);
+	indexBuffer.itemCount = 36;
+
+	// ΠΑΤΩΜΑ 60x60 - ελαφρώς κάτω από το z=0 (z=-0.01) για αποφυγή z-fighting
+	// με τις κάτω όψεις των πατουσών που βρίσκονται ακριβώς στο z=0
+	var floorVertices = new Float32Array([
+		-30.0,  30.0, -0.01, 1.0,
+		 30.0,  30.0, -0.01, 1.0,
+		 30.0, -30.0, -0.01, 1.0,
+		-30.0, -30.0, -0.01, 1.0
+	]);
+	floorVBuffer = gl.createBuffer();
+	gl.bindBuffer(gl.ARRAY_BUFFER, floorVBuffer);
+	gl.bufferData(gl.ARRAY_BUFFER, floorVertices, gl.STATIC_DRAW);
+	floorVBuffer.itemSize = 4;
+	floorVBuffer.itemCount = 4;
+
+	var floorIMatrix = new Uint16Array([0,1,2, 0,2,3]);
+	floorIBuffer = gl.createBuffer();
+	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, floorIBuffer);
+	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, floorIMatrix, gl.STATIC_DRAW);
+	floorIBuffer.itemCount = 6;
+
+	var floorUV = new Float32Array([
+		0.0, 1.0,  1.0, 1.0,  1.0, 0.0,  0.0, 0.0
+	]);
+	floorTextureBuffer = gl.createBuffer();
+	gl.bindBuffer(gl.ARRAY_BUFFER, floorTextureBuffer);
+	gl.bufferData(gl.ARRAY_BUFFER, floorUV, gl.STATIC_DRAW);
+	floorTextureBuffer.itemSize = 2;
+
+	// Φόρτωση textures
+	bodyTexture = gl.createTexture();
+	preprocessTextureImage("dog_body.jpg", bodyTexture);
+	headTexture = gl.createTexture();
+	preprocessTextureImage("dog_head.jpg", headTexture);
+	skyTexture = gl.createTexture();
+	preprocessTextureImage("sky.jpg", skyTexture);
+	floorTexture = gl.createTexture();
+	preprocessTextureImage("floor.jpg", floorTexture);
+}
+
+function preMultiply(out, A) {
+	glMatrix.mat4.multiply(out, A, out);
+}
+
+function rotateAround(out, axis, angle, px, py, pz) {
+	var T1 = new Float32Array(16);
+	var R = new Float32Array(16);
+	var T2 = new Float32Array(16);
+	glMatrix.mat4.fromTranslation(T1, [px, py, pz]);
+	glMatrix.mat4.fromTranslation(T2, [-px, -py, -pz]);
+	if (axis === 'x') glMatrix.mat4.fromXRotation(R, angle);
+	else if (axis === 'y') glMatrix.mat4.fromYRotation(R, angle);
+	else glMatrix.mat4.fromZRotation(R, angle);
+	preMultiply(out, T2);
+	preMultiply(out, R);
+	preMultiply(out, T1);
+}
+
+function scaleAround(out, sx, sy, sz, px, py, pz) {
+	var T1 = new Float32Array(16);
+	var S = new Float32Array(16);
+	var T2 = new Float32Array(16);
+	glMatrix.mat4.fromTranslation(T1, [px, py, pz]);
+	glMatrix.mat4.fromTranslation(T2, [-px, -py, -pz]);
+	glMatrix.mat4.fromScaling(S, [sx, sy, sz]);
+	preMultiply(out, T2);
+	preMultiply(out, S);
+	preMultiply(out, T1);
+}
+
+function applyGlobalTransforms(M, isBackLegPart) {
+	if (!isBackLegPart && situpAngle > 0) {
+		// άξονας πίσω ποδιών: y = -5.5 (κέντρο πίσω ποδιών), z = 8 (κορυφή ποδιών = κάτω όψη σώματος)
+		rotateAround(M, 'x', situpAngle*Math.PI/180.0, 0, -5.5, 8);
+	}
+	if (playDeadAngle > 0) {
+		// εξωτερική (αριστερή) πλευρά αριστερών πατουσών: x = -6
+		rotateAround(M, 'y', -playDeadAngle*Math.PI/180.0, -6, 0, 0);
+	}
+	if (reverseY < 0) {
+		var Tr = new Float32Array(16);
+		glMatrix.mat4.fromTranslation(Tr, [0, reverseY, 0]);
+		preMultiply(M, Tr);
+	}
+}
+
+function applyGreyhoundTransforms(M, partType, partY) {
+	if (greyhoundProgress <= 0.001) return;
+	// Η κίνηση γίνεται σε δύο φάσεις, όπως ζητά η εκφώνηση:
+	// Φάση 1 (greyhoundProgress 0..1): επιμήκυνση των ποδιών ως προς z.
+	// Φάση 2 (greyhoundProgress 1..2), "σε δεύτερο χρόνο": επιμήκυνση του κορμού ως προς y.
+	var legFactor = 1.0 + (greyhoundMaxFactor - 1.0)*Math.min(greyhoundProgress, 1.0);
+	var bodyFactor = 1.0 + (greyhoundMaxFactor - 1.0)*Math.max(greyhoundProgress - 1.0, 0.0);
+	if (partType === 'leg') {
+		// Επιμήκυνση ποδιού κατά z, σημείο αναφοράς η ένωσή του με την πατούσα (z=2)
+		scaleAround(M, 1, 1, legFactor, 0, 0, 2);
+	} else if (partType === 'paw') {
+	} else if (partType === 'body') {
+		// Επιμήκυνση κορμού κατά y, συμμετρικά ως προς τη μέση του μήκους του (y=0)
+		// και μετακίνηση προς τα πάνω κατά 6*(legFactor-1) λόγω επιμηκυμένων ποδιών (ύψος ποδιού 6)
+		scaleAround(M, 1, bodyFactor, 1, 0, 0, 0);
+		var dz = 6*(legFactor-1);
+		var Tr = new Float32Array(16);
+		glMatrix.mat4.fromTranslation(Tr, [0, 0, dz]);
+		preMultiply(M, Tr);
+	} else {
+		// "other" parts (κεφάλι, λαιμός, αυτιά, ουρά): μόνο μετακίνηση,
+		// χωρίς κλιμάκωση του ίδιου του μέρους ώστε να μένουν αναλλοίωτα
+		// αλλά να ακολουθούν τη νέα θέση του κορμού (ως προς y) και τα ψηλότερα πόδια (ως προς z)
+		var dz = 6*(legFactor-1);
+		var dy = (partY === undefined ? 0 : partY) * (bodyFactor-1);
+		var Tr = new Float32Array(16);
+		glMatrix.mat4.fromTranslation(Tr, [0, dy, dz]);
+		preMultiply(M, Tr);
+	}
+}
+
+// Σχεδιάζει του κυβου με έτοιμο μετασχηματισμό και υφή
+function drawBoxWithMatrix(M, texture, uvBuffer) {
+	gl.activeTexture(gl.TEXTURE0);
+	gl.bindTexture(gl.TEXTURE_2D, texture);
+	gl.uniform1i(uSamplerPointer, 0);
+
+	gl.bindBuffer(gl.ARRAY_BUFFER, uvBuffer);
+	gl.vertexAttribPointer(textureCoordinatesAttributePointer, uvBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+	gl.uniformMatrix4fv(modelUniformPointer, false, M);
+	gl.drawElements(gl.TRIANGLES, indexBuffer.itemCount, gl.UNSIGNED_SHORT, 0);
+}
+
+function buildBasicMatrix(out, sx, sy, sz, tx, ty, tz) {
+	glMatrix.mat4.fromScaling(scalingMatrix, [sx, sy, sz]);
+	glMatrix.mat4.fromTranslation(translationMatrix, [tx, ty, tz]);
+	glMatrix.mat4.multiply(out, translationMatrix, scalingMatrix);
+}
+
+// Διαστασεις για σχεδιασμο του σκύλου
+function drawDog() {
+	var revOn = (wheelMode === "reverse");
+
+	// Πατούσες
+	// Άξονας περιστροφής ποδιού: μέση πάνω όψης = z=8 (κορυφή ποδιού/σώματος)
+	buildBasicMatrix(finalMatrix, 3, 5, 2, -4.5, -5.5, 1);
+	applyGreyhoundTransforms(finalMatrix, 'paw');
+	rotateAround(finalMatrix, 'x', leftLegAngle*Math.PI/180.0, -4.5, -5.5, 8);
+	if (revOn) rotateAround(finalMatrix, 'x', -reverseLegAngle*Math.PI/180.0, -4.5, -5.5, 8);
+	applyGlobalTransforms(finalMatrix, true);
+	drawBoxWithMatrix(finalMatrix, bodyTexture, simpleTextureBuffer);
+
+	buildBasicMatrix(finalMatrix, 3, 5, 2, 4.5, -5.5, 1);
+	applyGreyhoundTransforms(finalMatrix, 'paw');
+	rotateAround(finalMatrix, 'x', rightLegAngle*Math.PI/180.0, 4.5, -5.5, 8);
+	if (revOn) rotateAround(finalMatrix, 'x', reverseLegAngle*Math.PI/180.0, 4.5, -5.5, 8);
+	applyGlobalTransforms(finalMatrix, true);
+	drawBoxWithMatrix(finalMatrix, bodyTexture, simpleTextureBuffer);
+
+	buildBasicMatrix(finalMatrix, 3, 5, 2, -4.5, 5.5, 1);
+	applyGreyhoundTransforms(finalMatrix, 'paw');
+	if (revOn) rotateAround(finalMatrix, 'x', reverseLegAngle*Math.PI/180.0, -4.5, 5.5, 8);
+	applyGlobalTransforms(finalMatrix, false);
+	drawBoxWithMatrix(finalMatrix, bodyTexture, simpleTextureBuffer);
+
+	buildBasicMatrix(finalMatrix, 3, 5, 2, 4.5, 5.5, 1);
+	applyGreyhoundTransforms(finalMatrix, 'paw');
+	if (revOn) rotateAround(finalMatrix, 'x', -reverseLegAngle*Math.PI/180.0, 4.5, 5.5, 8);
+	applyGlobalTransforms(finalMatrix, false);
+	drawBoxWithMatrix(finalMatrix, bodyTexture, simpleTextureBuffer);
+
+	// Πόδια
+	buildBasicMatrix(finalMatrix, 3, 4, 6, -4.5, -5.5, 5);
+	applyGreyhoundTransforms(finalMatrix, 'leg');
+	rotateAround(finalMatrix, 'x', leftLegAngle*Math.PI/180.0, -4.5, -5.5, 8);
+	if (revOn) rotateAround(finalMatrix, 'x', -reverseLegAngle*Math.PI/180.0, -4.5, -5.5, 8);
+	applyGlobalTransforms(finalMatrix, true);
+	drawBoxWithMatrix(finalMatrix, bodyTexture, simpleTextureBuffer);
+
+	buildBasicMatrix(finalMatrix, 3, 4, 6, 4.5, -5.5, 5);
+	applyGreyhoundTransforms(finalMatrix, 'leg');
+	rotateAround(finalMatrix, 'x', rightLegAngle*Math.PI/180.0, 4.5, -5.5, 8);
+	if (revOn) rotateAround(finalMatrix, 'x', reverseLegAngle*Math.PI/180.0, 4.5, -5.5, 8);
+	applyGlobalTransforms(finalMatrix, true);
+	drawBoxWithMatrix(finalMatrix, bodyTexture, simpleTextureBuffer);
+
+	buildBasicMatrix(finalMatrix, 3, 4, 6, -4.5, 5.5, 5);
+	applyGreyhoundTransforms(finalMatrix, 'leg');
+	if (revOn) rotateAround(finalMatrix, 'x', reverseLegAngle*Math.PI/180.0, -4.5, 5.5, 8);
+	applyGlobalTransforms(finalMatrix, false);
+	drawBoxWithMatrix(finalMatrix, bodyTexture, simpleTextureBuffer);
+
+	buildBasicMatrix(finalMatrix, 3, 4, 6, 4.5, 5.5, 5);
+	applyGreyhoundTransforms(finalMatrix, 'leg');
+	if (revOn) rotateAround(finalMatrix, 'x', -reverseLegAngle*Math.PI/180.0, 4.5, 5.5, 8);
+	applyGlobalTransforms(finalMatrix, false);
+	drawBoxWithMatrix(finalMatrix, bodyTexture, simpleTextureBuffer);
+
+	// Κορμός
+	buildBasicMatrix(finalMatrix, 6, 14, 4, 0, 0, 6);
+	applyGreyhoundTransforms(finalMatrix, 'body');
+	applyGlobalTransforms(finalMatrix, false);
+	drawBoxWithMatrix(finalMatrix, bodyTexture, simpleTextureBuffer);
+
+	// Λαιμός
+	buildBasicMatrix(finalMatrix, 4, 4, 3, 0, 5, 9.5);
+	applyGreyhoundTransforms(finalMatrix, 'other', 5);
+	applyGlobalTransforms(finalMatrix, false);
+	drawBoxWithMatrix(finalMatrix, bodyTexture, simpleTextureBuffer);
+
+	// Κεφάλι
+	// Άξονας περιστροφής κεφαλιού: κέντρο βάσης λαιμού (0, 5, 8) γύρω από z
+	buildBasicMatrix(finalMatrix, 6, 8, 4, 0, 7, 13);
+	if (easterEggActive && headInflate > 1.0) {
+		// Κλιμάκωση γύρω από την κάτω όψη (z=11) ώστε να μη μπει στο λαιμό
+		scaleAround(finalMatrix, headInflate, headInflate, headInflate, 0, 7, 11);
+	}
+	rotateAround(finalMatrix, 'z', headAngle*Math.PI/180.0, 0, 5, 8);
+	applyGreyhoundTransforms(finalMatrix, 'other', 7);
+	applyGlobalTransforms(finalMatrix, false);
+	drawBoxWithMatrix(finalMatrix, headTexture, headTextureBuffer);
+
+	// Αριστερό αυτί
+	buildBasicMatrix(finalMatrix, 2, 2, 5, -4, 4, 12.5);
+	if (easterEggActive) {
+		// Καθώς το κεφάλι φουσκώνει (κλιμάκωση γύρω από το (0,7,11)), το αυτί ακολουθεί
+		// την πίσω-επάνω-εξωτερική γωνία του, ώστε να μένει έξω από το κεφάλι
+		// και με την κορυφή του πάντα στο ύψος της κορυφής του κεφαλιού (z = 11+4*headInflate)
+		var dxEarL = -3*(headInflate - 1);
+		var dyEarL = -4*(headInflate - 1);
+		var dzEarL =  4*(headInflate - 1);
+		var TrEarL = new Float32Array(16);
+		glMatrix.mat4.fromTranslation(TrEarL, [dxEarL, dyEarL, dzEarL]);
+		preMultiply(finalMatrix, TrEarL);
+		if (earInflate > 1.0) {
+			// Κλιμάκωση γύρω από την επάνω-πίσω-εσωτερική γωνία του αυτιού (πάνω στην πλαϊνή όψη του κεφαλιού):
+			// το αυτί μεγαλώνει προς τα κάτω/εμπρός/έξω, χωρίς να μπει στο κεφάλι
+			// και χωρίς να ξεπεράσει το ύψος του κεφαλιού
+			scaleAround(finalMatrix, earInflate, earInflate, earInflate, -3*headInflate, 7 - 4*headInflate, 11 + 4*headInflate);
+			if (earRotation > 0) {
+				// Περιστροφή 360 μοιρών γύρω από την επάνω εμπρός ακμή του
+				// (παράλληλη στον x, δηλαδή κάθετη στην πλαϊνή όψη του κεφαλιού)
+				var frontYL = (7 - 4*headInflate) + 2*earInflate;
+				var topZL = 11 + 4*headInflate;
+				rotateAround(finalMatrix, 'x', earRotation*Math.PI/180.0, -4, frontYL, topZL);
+			}
+		}
+	}
+	rotateAround(finalMatrix, 'z', headAngle*Math.PI/180.0, 0, 5, 8);
+	applyGreyhoundTransforms(finalMatrix, 'other', 7); // ίδιο partY με το κεφάλι, ώστε το αυτί να μένει "κολλημένο" σε αυτό
+	applyGlobalTransforms(finalMatrix, false);
+	drawBoxWithMatrix(finalMatrix, bodyTexture, simpleTextureBuffer);
+
+	// Δεξί αυτί
+	buildBasicMatrix(finalMatrix, 2, 2, 5, 4, 4, 12.5);
+	if (easterEggActive) {
+		var dxEarR = 3*(headInflate - 1);
+		var dyEarR = -4*(headInflate - 1);
+		var dzEarR =  4*(headInflate - 1);
+		var TrEarR = new Float32Array(16);
+		glMatrix.mat4.fromTranslation(TrEarR, [dxEarR, dyEarR, dzEarR]);
+		preMultiply(finalMatrix, TrEarR);
+		if (earInflate > 1.0) {
+			scaleAround(finalMatrix, earInflate, earInflate, earInflate, 3*headInflate, 7 - 4*headInflate, 11 + 4*headInflate);
+			if (earRotation > 0) {
+				// Αντίθετη κατεύθυνση περιστροφής από το αριστερό αυτί
+				var frontYR = (7 - 4*headInflate) + 2*earInflate;
+				var topZR = 11 + 4*headInflate;
+				rotateAround(finalMatrix, 'x', -earRotation*Math.PI/180.0, 4, frontYR, topZR);
+			}
+		}
+	}
+	rotateAround(finalMatrix, 'z', headAngle*Math.PI/180.0, 0, 5, 8);
+	applyGreyhoundTransforms(finalMatrix, 'other', 7);
+	applyGlobalTransforms(finalMatrix, false);
+	drawBoxWithMatrix(finalMatrix, bodyTexture, simpleTextureBuffer);
+
+	// Ουρά
+	// Άξονας περιστροφής: πίσω ακμή της βάσης (0, -7, 8)
+	buildBasicMatrix(finalMatrix, 2, 2, 4, 0, -6, 10);
+	rotateAround(finalMatrix, 'x', tailAngle*Math.PI/180.0, 0, -7, 8);
+	applyGreyhoundTransforms(finalMatrix, 'other', -6);
+	applyGlobalTransforms(finalMatrix, false);
+	drawBoxWithMatrix(finalMatrix, bodyTexture, simpleTextureBuffer);
+}
+
+function drawSkybox() {
+	// Skybox: κύβος ακμής 2000 γύρω από όλη τη σκηνή
+	gl.activeTexture(gl.TEXTURE0);
+	gl.bindTexture(gl.TEXTURE_2D, skyTexture);
+	gl.uniform1i(uSamplerPointer, 0);
+
+	gl.bindBuffer(gl.ARRAY_BUFFER, simpleTextureBuffer);
+	gl.vertexAttribPointer(textureCoordinatesAttributePointer, simpleTextureBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+	glMatrix.mat4.fromScaling(scalingMatrix, [2000, 2000, 2000]);
+	gl.uniformMatrix4fv(modelUniformPointer, false, scalingMatrix);
+	gl.drawElements(gl.TRIANGLES, indexBuffer.itemCount, gl.UNSIGNED_SHORT, 0);
+}
+
+function drawFloor() {
+	// Πάτωμα 60x60 με τα ονόματα/ΑΜ
+	gl.activeTexture(gl.TEXTURE0);
+	gl.bindTexture(gl.TEXTURE_2D, floorTexture);
+	gl.uniform1i(uSamplerPointer, 0);
+
+	gl.bindBuffer(gl.ARRAY_BUFFER, floorVBuffer);
+	gl.vertexAttribPointer(vertexPositionAttributePointer, floorVBuffer.itemSize, gl.FLOAT, false, 0, 0);
+	gl.bindBuffer(gl.ARRAY_BUFFER, floorTextureBuffer);
+	gl.vertexAttribPointer(textureCoordinatesAttributePointer, floorTextureBuffer.itemSize, gl.FLOAT, false, 0, 0);
+	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, floorIBuffer);
+
+	glMatrix.mat4.identity(finalMatrix);
+	gl.uniformMatrix4fv(modelUniformPointer, false, finalMatrix);
+	gl.drawElements(gl.TRIANGLES, floorIBuffer.itemCount, gl.UNSIGNED_SHORT, 0);
+}
+
+function drawScene() {
+	// Τοποθέτηση κάμερας 
+	var camX = camRadius*Math.cos(totalAngle);
+	var camY = camRadius*Math.sin(totalAngle);
+	glMatrix.mat4.lookAt(viewMatrix, [camX, camY, totalZ], [0,0,0], [0,0,1]);
+
+	// Προβολή προοπτικής
+	var farPlane = 100 * camOrthoDistance;
+	if (farPlane < 9000) farPlane = 9000;
+	glMatrix.mat4.perspective(perspectiveMatrix, viewAngle*Math.PI/180.0, 1, 0.0001, farPlane);
+	glMatrix.mat4.multiply(pvMatrix, perspectiveMatrix, viewMatrix);
+	gl.uniformMatrix4fv(perspectiveViewUniformPointer, false, pvMatrix);
+
+	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+	// Σχεδίαση σκύλου
+	gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+	gl.vertexAttribPointer(vertexPositionAttributePointer, vertexBuffer.itemSize, gl.FLOAT, false, 0, 0);
+	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+
+	drawDog();
+	drawSkybox();
+	drawFloor();
+}
+
+function setWheelMode(mode) { wheelMode = mode; }
+
+function main() {
+	minDimension = Math.min(window.innerHeight, window.innerWidth);
+	canvas = document.getElementById("sceneCanvas");
+	canvas.width = 0.9*minDimension;
+	canvas.height = 0.9*minDimension;
+	gl = WebGLDebugUtils.makeDebugContext(createGLContext(canvas));
+	initShaders();
+	initBuffers();
+	// Σκούρο μπλε φόντο 
+	gl.clearColor(0.0, 0.0, 0.15, 1.0);
+	gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+	gl.enable(gl.DEPTH_TEST);
+	canvas.onmousedown = handleMouseDown;
+	window.onmouseup = handleMouseUp;
+	canvas.onmousemove = handleMouseMove;
+	canvas.onwheel = handleMouseWheel;
+	rect = canvas.getBoundingClientRect();
+	drawScene();
+}
+
+// Επανασχεδίαση της σκηνής με νέα δεδομένα
+function redraw() {
+	// Διάβασε τη γωνία θέασης
+	var txtViewAngle;
+	txtViewAngle = document.getElementById("viewAngleTxt").value;
+	var numViewAngle = parseFloat(txtViewAngle);
+	viewAngle = numViewAngle;
+
+	// Διάβασε την ορθογώνια απόσταση κάμερας
+	var txtCamOrthoDistance;
+	txtCamOrthoDistance = document.getElementById("camOrthoDistanceTxt").value;
+	var numCamOrthoDistance = parseFloat(txtCamOrthoDistance);
+	camOrthoDistance = numCamOrthoDistance;
+
+	// Διάβασε ποιο radio είναι επιλεγμένο
+	var radios = document.getElementsByName("camPos");
+	var sel = null;
+	for (var i = 0; i < radios.length; i++)
+		if (radios[i].checked) { sel = radios[i].value; break; }
+
+	var D = camOrthoDistance;
+	camRadius = D * Math.sqrt(2);
+	switch(sel) {
+		case "LFT": totalAngle = 3*Math.PI/4;  totalZ =  D; break;
+		case "LFB": totalAngle = 3*Math.PI/4;  totalZ = -D; break;
+		case "LBT": totalAngle = -3*Math.PI/4; totalZ =  D; break;
+		case "LBB": totalAngle = -3*Math.PI/4; totalZ = -D; break;
+		case "RFT": totalAngle =   Math.PI/4;  totalZ =  D; break;
+		case "RFB": totalAngle =   Math.PI/4;  totalZ = -D; break;
+		case "RBT": totalAngle = -Math.PI/4;   totalZ =  D; break;
+		case "RBB": totalAngle = -Math.PI/4;   totalZ = -D; break;
+	}
+
+	drawScene();
+}
+
+// Ξεκινάει η κίνηση της κάμερας
+function startAnimation() {
+	camRadius = camOrthoDistance;
+	if (requestID == 0)
+		requestID = window.requestAnimationFrame(animationStep);
+}
+
+function animationStep() {
+	// Όπως στην εργαστηριακή άσκηση A_B (TODO.1): τα αυτόματα βήματα της κάμερας
+	// εφαρμόζονται ΜΟΝΟ αν δεν είναι πατημένο κουμπί του ποντικιού
+	if (!mouseDown) {
+		// Ενημέρωση γωνίας περιστροφής
+		totalAngle += stepAngle*Math.PI/180.0;
+		if (totalAngle >= 2*Math.PI) totalAngle -= 2*Math.PI;
+		// Ανέβα-κατέβα κάμερας
+		totalZ += zDirection*stepZ;
+		if (totalZ > camOrthoDistance)  { totalZ = camOrthoDistance;  zDirection = -1; }
+		if (totalZ < -camOrthoDistance) { totalZ = -camOrthoDistance; zDirection =  1; }
+	}
+	if (mouseDown && deltaFresh) {
+		totalAngle += deltaMouseX*Math.PI/180.0;
+		if (totalAngle >= 2*Math.PI) totalAngle -= 2*Math.PI;
+		if (totalAngle < 0) totalAngle += 2*Math.PI;
+		totalZ += deltaMouseY/10.0;
+		deltaFresh = false;
+	}
+	updateAnimatedAction();
+	drawScene();
+	requestID = window.requestAnimationFrame(animationStep);
+}
+
+function stopAnimation() {
+	window.cancelAnimationFrame(requestID);
+	requestID = 0;
+}
+
+function updateAnimatedAction() {
+	var step = 1.5;
+	if (wheelMode === "playDead") {
+		playDeadAngle += playDeadDir*step;
+		if (playDeadAngle >= 90) { playDeadAngle = 90; playDeadDir = -1; }
+		if (playDeadAngle <= 0)  { playDeadAngle = 0;  playDeadDir =  1; }
+	} else if (wheelMode === "situp") {
+		situpAngle += situpDir*step;
+		if (situpAngle >= 90) { situpAngle = 90; situpDir = -1; }
+		if (situpAngle <= 0)  { situpAngle = 0;  situpDir =  1; }
+	} else if (wheelMode === "greyhound") {
+		var gStep = 0.02;
+		var prevDir = greyhoundDir;
+		greyhoundProgress += greyhoundDir*gStep;
+		if (greyhoundProgress >= 2.0) { greyhoundProgress = 2.0; greyhoundDir = -1; }
+		if (greyhoundProgress <= 0.0) {
+			greyhoundProgress = 0.0;
+			if (prevDir === -1) {
+				greyhoundCycles++;
+				if (greyhoundCycles >= 5 && !easterEggActive) {
+					easterEggActive = true;
+					easterPhase = 0;
+					headInflate = 1.0;
+					earInflate = 1.0;
+					earRotation = 0;
+				}
+			}
+			greyhoundDir = 1;
+		}
+	} else if (wheelMode === "reverse") {
+		reverseLegAngle += reverseLegDir*step;
+		if (reverseLegAngle >= 90)  { reverseLegAngle = 90;  reverseLegDir = -1; }
+		if (reverseLegAngle <= -90) { reverseLegAngle = -90; reverseLegDir =  1; }
+		reverseY -= 0.2;
+	}
+
+	if (easterEggActive) {
+		if (easterPhase === 0) {
+			headInflate += 0.02;
+			if (headInflate >= 3.0) { headInflate = 3.0; easterPhase = 1; }
+		} else if (easterPhase === 1) {
+			earInflate += 0.02;
+			if (earInflate >= 3.0) { earInflate = 3.0; easterPhase = 2; }
+		} else if (easterPhase === 2) {
+			earRotation += 5;
+			if (earRotation >= 360) { earRotation = 0; easterPhase = 3; }
+		}
+	}
+}
+
+function handleMouseDown(event) {
+	mouseDown = true;
+	lastMouseX = event.clientX - rect.left;
+	lastMouseY = rect.bottom - event.clientY;
+	deltaMouseX = 0;
+	deltaMouseY = 0;
+	deltaFresh = true;
+}
+
+function handleMouseUp(event) { mouseDown = false; }
+
+function handleMouseMove(event) {
+	currMouseX = event.clientX - rect.left;
+	currMouseY = rect.bottom - event.clientY;
+	document.getElementById("mouseX").innerHTML = currMouseX;
+	document.getElementById("mouseY").innerHTML = currMouseY;
+	if (mouseDown) {
+		deltaMouseX = currMouseX - lastMouseX;
+		deltaMouseY = currMouseY - lastMouseY;
+		deltaFresh = true;
+		if (requestID == 0) {
+			totalAngle += deltaMouseX*Math.PI/180.0;
+			if (totalAngle >= 2*Math.PI) totalAngle -= 2*Math.PI;
+			if (totalAngle < 0) totalAngle += 2*Math.PI;
+			totalZ += deltaMouseY/10.0;
+			drawScene();
+		}
+	}
+	lastMouseX = currMouseX;
+	lastMouseY = currMouseY;
+}
+
+function handleMouseWheel(event) {
+	event.preventDefault();
+	var wheelSign = (event.deltaY > 0) ? 1 : -1;
+	var step = 3;
+	switch (wheelMode) {
+		case "tail":
+			tailAngle += wheelSign*tailDir*step;
+			if (tailAngle >= 90) { tailAngle = 90; tailDir = -tailDir; }
+			if (tailAngle <= 0)  { tailAngle = 0;  tailDir = -tailDir; }
+			break;
+		case "head":
+			headAngle += wheelSign*headDir*step;
+			if (headAngle >=  90) { headAngle =  90; headDir = -headDir; }
+			if (headAngle <= -90) { headAngle = -90; headDir = -headDir; }
+			break;
+		case "rightBackLeg":
+			rightLegAngle += wheelSign*rightLegDir*step;
+			if (rightLegAngle >=  90) { rightLegAngle =  90; rightLegDir = -rightLegDir; }
+			if (rightLegAngle <= -90) { rightLegAngle = -90; rightLegDir = -rightLegDir; }
+			break;
+		case "leftBackLeg":
+			leftLegAngle += wheelSign*leftLegDir*step;
+			if (leftLegAngle >=  90) { leftLegAngle =  90; leftLegDir = -leftLegDir; }
+			if (leftLegAngle <= -90) { leftLegAngle = -90; leftLegDir = -leftLegDir; }
+			break;
+		// Οι επιλογές του Βήματος 11 ελέγχονται με τη ροδέλα ΜΟΝΟ όταν το animation είναι
+		// σταματημένο - όσο τρέχει, η εξέλιξή τους γίνεται αυτόματα (στην updateAnimatedAction)
+		case "playDead":
+			if (requestID != 0) break;
+			playDeadAngle += wheelSign*playDeadDir*step;
+			if (playDeadAngle >= 90) { playDeadAngle = 90; playDeadDir = -playDeadDir; }
+			if (playDeadAngle <= 0)  { playDeadAngle = 0;  playDeadDir = -playDeadDir; }
+			break;
+		case "situp":
+			if (requestID != 0) break;
+			situpAngle += wheelSign*situpDir*step;
+			if (situpAngle >= 90) { situpAngle = 90; situpDir = -situpDir; }
+			if (situpAngle <= 0)  { situpAngle = 0;  situpDir = -situpDir; }
+			break;
+		case "greyhound":
+			if (requestID != 0) break;
+			var gStep = 0.05;
+			var prevDir = greyhoundDir;
+			greyhoundProgress += wheelSign*greyhoundDir*gStep;
+			if (greyhoundProgress >= 2.0) { greyhoundProgress = 2.0; greyhoundDir = -greyhoundDir; }
+			if (greyhoundProgress <= 0.0) {
+				greyhoundProgress = 0.0;
+				if (prevDir === -1) {
+					greyhoundCycles++;
+					if (greyhoundCycles >= 5 && !easterEggActive) {
+						easterEggActive = true;
+						easterPhase = 0;
+						headInflate = 1.0;
+						earInflate = 1.0;
+						earRotation = 0;
+					}
+				}
+				greyhoundDir = -greyhoundDir;
+			}
+			break;
+		case "reverse":
+			if (requestID != 0) break;
+			reverseLegAngle += wheelSign*reverseLegDir*step;
+			if (reverseLegAngle >=  90) { reverseLegAngle =  90; reverseLegDir = -reverseLegDir; }
+			if (reverseLegAngle <= -90) { reverseLegAngle = -90; reverseLegDir = -reverseLegDir; }
+			// Η κίνηση ολόκληρου του σκύλου προς τα πίσω είναι συνεχής (πάντα προς την
+			// αρνητική φορά του y), ανεξάρτητα από τη φορά περιστροφής της ροδέλας
+			reverseY -= 0.5;
+			break;
+	}
+
+	if (easterEggActive && requestID == 0) {
+		if (easterPhase === 0) {
+			headInflate += wheelSign*0.04;
+			if (headInflate >= 3.0) { headInflate = 3.0; easterPhase = 1; }
+			if (headInflate < 1.0)  { headInflate = 1.0; }
+		} else if (easterPhase === 1) {
+			earInflate += wheelSign*0.04;
+			if (earInflate >= 3.0) { earInflate = 3.0; easterPhase = 2; }
+			if (earInflate < 1.0)  { earInflate = 1.0; }
+		} else if (easterPhase === 2) {
+			earRotation += wheelSign*10;
+			if (earRotation >= 360) { earRotation = 0; easterPhase = 3; }
+			if (earRotation < 0)    { earRotation = 0; }
+		}
+	}
+
+	if (requestID == 0) drawScene();
+}
+ </script>
+
+ </head>
+
+<body onload="main()">
+<canvas id="sceneCanvas"></canvas>
+<p>
+Γωνία θέασης:
+<input type="text" id="viewAngleTxt" value="60" autocomplete="off">
+Ορθογώνια απόσταση κάμερας:
+<input type="text" id="camOrthoDistanceTxt" value="30" autocomplete="off">
+<br><br>
+Θέση κάμερας:
+<input type="radio" name="camPos" value="LFT"> Left-Front-Top
+<input type="radio" name="camPos" value="LFB"> Left-Front-Bottom
+<input type="radio" name="camPos" value="LBT"> Left-Back-Top
+<input type="radio" name="camPos" value="LBB"> Left-Back-Bottom
+<input type="radio" name="camPos" value="RFT" checked> Right-Front-Top
+<input type="radio" name="camPos" value="RFB"> Right-Front-Bottom
+<input type="radio" name="camPos" value="RBT"> Right-Back-Top
+<input type="radio" name="camPos" value="RBB"> Right-Back-Bottom
+<br><br>
+<button onclick="redraw()">Επανασχεδίαση</button>
+<button id="startButton" onclick="startAnimation()">Ξεκίνα!</button>
+<button id="stopButton" onclick="stopAnimation()">Σταμάτα!</button>
+<br>
+Θέση ποντικιού στον καμβά x:<span id="mouseX">--</span>,y:<span id="mouseY">--</span>
+<br><br>
+Ενέργεια ροδέλας:
+<input type="radio" name="wheelAction" value="tail" checked onclick="setWheelMode('tail')"> Ουρά
+<input type="radio" name="wheelAction" value="head" onclick="setWheelMode('head')"> Κεφάλι
+<input type="radio" name="wheelAction" value="rightBackLeg" onclick="setWheelMode('rightBackLeg')"> Σκάψιμο - δεξί πίσω πόδι
+<input type="radio" name="wheelAction" value="leftBackLeg" onclick="setWheelMode('leftBackLeg')"> Σκάψιμο - αριστερό πίσω πόδι
+<br>
+<input type="radio" name="wheelAction" value="playDead" onclick="setWheelMode('playDead')"> Play dead
+<input type="radio" name="wheelAction" value="situp" onclick="setWheelMode('situp')"> Σούζα
+<input type="radio" name="wheelAction" value="greyhound" onclick="setWheelMode('greyhound')"> Λαγωνικό
+<input type="radio" name="wheelAction" value="reverse" onclick="setWheelMode('reverse')"> Όπισθεν
+</p>
+</body>
+</html>
