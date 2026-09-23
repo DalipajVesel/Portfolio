@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <color name="display_color">#000000</color>
+    <color name="keypad_color">#1A1A1A</color>
+    <color name="memory_color">#2A2A2A</color>
+
+    <color name="text_white">#FFFFFF</color>
+    <color name="text_grey">#8C8C8C</color>
+
+    <color name="blue">#2979FF</color>
+    <color name="ripple">#33FFFFFF</color>
+
+
+</resources>

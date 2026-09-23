@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- fitsSystemWindows keeps the display and the keys out from under the status and navigation bars -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/display_color"
+    android:fitsSystemWindows="true"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="@color/display_color"
+        android:gravity="bottom|end"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:id="@+id/tvExpression"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:ellipsize="start"
+            android:maxLines="1"
+            android:text="0"
+            android:textColor="@color/text_white"
+            android:textSize="48sp" />
+
+        <TextView
+            android:id="@+id/tvResult"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:paddingTop="8dp"
+            android:textColor="@color/text_grey"
+            android:textSize="28sp" />
+
+    </LinearLayout>
+
+    <GridLayout
+        android:id="@+id/keypad"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="2"
+        android:background="@color/keypad_color"
+        android:columnCount="4"
+        android:rowCount="6">
+
+        <TextView
+            style="@style/Key.Wide"
+            android:tag="("
+            android:text="(" />
+
+        <TextView
+            style="@style/Key.Wide"
+            android:tag=")"
+            android:text=")" />
+
+        <TextView
+            style="@style/Key.Blue"
+            android:tag="clear"
+            android:text="C" />
+
+        <TextView
+            style="@style/Key.Blue"
+            android:tag="÷"
+            android:text="÷" />
+
+        <TextView
+            style="@style/Key.Blue"
+            android:tag="×"
+            android:text="×" />
+
+        <TextView
+            style="@style/Key.Blue"
+            android:tag="del"
+            android:text="⌫" />
+
+        <TextView
+            style="@style/Key"
+            android:tag="7"
+            android:text="7" />
+
+        <TextView
+            style="@style/Key"
+            android:tag="8"
+            android:text="8" />
+
+        <TextView
+            style="@style/Key"
+            android:tag="9"
+            android:text="9" />
+
+        <TextView
+            style="@style/Key.Blue"
+            android:tag="−"
+            android:text="−" />
+
+        <TextView
+            style="@style/Key"
+            android:tag="4"
+            android:text="4" />
+
+        <TextView
+            style="@style/Key"
+            android:tag="5"
+            android:text="5" />
+
+        <TextView
+            style="@style/Key"
+            android:tag="6"
+            android:text="6" />
+
+        <TextView
+            style="@style/Key.Blue"
+            android:tag="+"
+            android:text="+" />
+
+        <TextView
+            style="@style/Key"
+            android:tag="1"
+            android:text="1" />
+
+        <TextView
+            style="@style/Key"
+            android:tag="2"
+            android:text="2" />
+
+        <TextView
+            style="@style/Key"
+            android:tag="3"
+            android:text="3" />
+
+        <TextView
+            style="@style/Key.Equals"
+            android:tag="eq"
+            android:text="=" />
+
+        <TextView
+            style="@style/Key.Blue"
+            android:tag="%"
+            android:text="%" />
+
+        <TextView
+            style="@style/Key"
+            android:tag="0"
+            android:text="0" />
+
+        <TextView
+            style="@style/Key"
+            android:tag="."
+            android:text="." />
+
+    </GridLayout>
+
+</LinearLayout>

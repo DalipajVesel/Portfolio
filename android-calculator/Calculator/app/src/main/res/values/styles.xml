@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="Key">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">0dp</item>
+        <item name="android:layout_columnWeight">1</item>
+        <item name="android:layout_rowWeight">1</item>
+        <item name="android:layout_gravity">fill</item>
+        <item name="android:gravity">center</item>
+        <item name="android:background">?android:attr/selectableItemBackgroundBorderless</item>
+        <item name="android:textSize">30sp</item>
+        <item name="android:textColor">@color/text_white</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+    </style>
+
+    <style name="Key.Blue">
+        <item name="android:textColor">@color/blue</item>
+    </style>
+
+    <style name="Key.Wide">
+        <item name="android:layout_columnSpan">2</item>
+        <item name="android:textColor">@color/blue</item>
+    </style>
+
+    <style name="Key.Equals">
+        <item name="android:layout_rowSpan">2</item>
+        <item name="android:background">@color/blue</item>
+    </style>
+
+</resources>
