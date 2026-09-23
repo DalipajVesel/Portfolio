@@ -1,0 +1,23 @@
+int x = 5;
+x = 10;
+x + 3;
+x > 2;
+scan(x);
+len("hello");
+cmp("ab","cd");
+print(1,2,3);
+print(x[0]);
+x[0] = 99;
+if (x > 2) {
+	print("big");
+}
+while (x > 0) {
+	x - 1;
+}
+for (x = 0; x < 3; x = 1) {
+	print(1);
+}
+func add(int a, int b) {
+	int c = 1;
+};
+add(5);
