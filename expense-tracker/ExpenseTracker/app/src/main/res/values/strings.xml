@@ -1,0 +1,26 @@
+<resources>
+    <string name="app_name">ExpenseTracker</string>
+    <string name="title_expenses">Expenses</string>
+    <string name="total_label">Total</string>
+    <string name="filter_24h">24h</string>
+    <string name="filter_week">Week</string>
+    <string name="filter_month">Month</string>
+    <string name="filter_year">Year</string>
+    <string name="filter_custom">Custom</string>
+    <string name="date_range_title">Select range</string>
+    <string name="add_expense">Add expense</string>
+    <string name="title_add_expense">Add expense</string>
+    <string name="title_edit_expense">Edit expense</string>
+    <string name="hint_name">What did you buy</string>
+    <string name="hint_amount">Amount</string>
+    <string name="label_street">Street</string>
+    <string name="label_date_time">Date and time</string>
+    <string name="action_save">Save</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_delete">Delete</string>
+    <string name="error_required">Required</string>
+    <string name="error_invalid_amount">Enter a valid amount</string>
+    <string name="delete_confirm_title">Delete expense?</string>
+    <string name="delete_confirm_message">This cannot be undone.</string>
+    <string name="expense_saved">Expense saved</string>
+</resources>

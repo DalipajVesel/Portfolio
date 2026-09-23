@@ -1,0 +1,225 @@
+package com.vesel.expensetracker;
+
+import android.content.DialogInterface;
+import android.content.Intent;
+import android.os.Bundle;
+import android.view.View;
+import android.widget.TextView;
+
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.util.Pair;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import com.google.android.material.chip.Chip;
+import com.google.android.material.chip.ChipGroup;
+import com.google.android.material.datepicker.MaterialDatePicker;
+import com.google.android.material.datepicker.MaterialPickerOnPositiveButtonClickListener;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
+
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.List;
+import java.util.Locale;
+import java.util.TimeZone;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+public class MainActivity extends AppCompatActivity
+        implements ExpenseAdapter.OnExpenseClickListener {
+
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final SimpleDateFormat rangeFormat =
+            new SimpleDateFormat("d MMM", Locale.getDefault());
+
+    private ExpenseDao dao;
+    private ExpenseAdapter adapter;
+    private TextView textTotal;
+    private ChipGroup chipGroupFilters;
+    private Chip chipCustom;
+
+    private long rangeFrom;
+    private long rangeTo;
+
+    // the fixed ranges are counted from the current time every time the screen opens
+    // the custom one keeps the dates the user picked
+    private boolean customRange;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        dao = AppDatabase.getInstance(this).expenseDao();
+
+        textTotal = findViewById(R.id.textTotal);
+        chipGroupFilters = findViewById(R.id.chipGroupFilters);
+        chipCustom = findViewById(R.id.chipCustom);
+
+        adapter = new ExpenseAdapter(this);
+        RecyclerView recycler = findViewById(R.id.recyclerExpenses);
+        recycler.setLayoutManager(new LinearLayoutManager(this));
+        recycler.setAdapter(adapter);
+
+        FloatingActionButton fab = findViewById(R.id.fabAdd);
+        fab.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(MainActivity.this, AddEditExpenseActivity.class));
+            }
+        });
+
+        // picking a chip changes the range and loads the list again
+        chipGroupFilters.setOnCheckedStateChangeListener(
+                new ChipGroup.OnCheckedStateChangeListener() {
+                    @Override
+                    public void onCheckedChanged(@NonNull ChipGroup group,
+                                                 @NonNull List<Integer> checkedIds) {
+                        if (checkedIds.isEmpty()) {
+                            return;
+                        }
+                        int checkedId = checkedIds.get(0);
+                        if (checkedId == R.id.chipCustom) {
+                            showDateRangePicker();
+                        } else {
+                            customRange = false;
+                            chipCustom.setText(R.string.filter_custom);
+                            setRelativeRange(checkedId);
+                            load();
+                        }
+                    }
+                });
+
+        setRelativeRange(R.id.chip24h);
+    }
+
+    // reloading here also covers coming back from add, edit and delete
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (!customRange) {
+            setRelativeRange(chipGroupFilters.getCheckedChipId());
+        }
+        load();
+    }
+
+    @Override
+    public void onExpenseClick(Expense expense) {
+        Intent intent = new Intent(this, AddEditExpenseActivity.class);
+        intent.putExtra(AddEditExpenseActivity.EXTRA_EXPENSE_ID, expense.id);
+        startActivity(intent);
+    }
+
+    // from now back one day, week, month or year, depending on the chip
+    private void setRelativeRange(int checkedId) {
+        Calendar calendar = Calendar.getInstance();
+        rangeTo = calendar.getTimeInMillis();
+
+        if (checkedId == R.id.chipWeek) {
+            calendar.add(Calendar.DAY_OF_YEAR, -7);
+        } else if (checkedId == R.id.chipMonth) {
+            calendar.add(Calendar.MONTH, -1);
+        } else if (checkedId == R.id.chipYear) {
+            calendar.add(Calendar.YEAR, -1);
+        } else {
+            calendar.add(Calendar.DAY_OF_YEAR, -1);
+        }
+        rangeFrom = calendar.getTimeInMillis();
+    }
+
+    private void showDateRangePicker() {
+        MaterialDatePicker<Pair<Long, Long>> picker =
+                MaterialDatePicker.Builder.dateRangePicker()
+                        .setTitleText(R.string.date_range_title)
+                        .build();
+
+        picker.addOnPositiveButtonClickListener(
+                new MaterialPickerOnPositiveButtonClickListener<Pair<Long, Long>>() {
+                    @Override
+                    public void onPositiveButtonClick(Pair<Long, Long> selection) {
+                        rangeFrom = startOfDayLocal(selection.first);
+                        rangeTo = endOfDayLocal(selection.second);
+                        customRange = true;
+                        chipCustom.setText(rangeFormat.format(new Date(rangeFrom))
+                                + " - " + rangeFormat.format(new Date(rangeTo)));
+                        load();
+                    }
+                });
+
+        // if the picker is closed without dates, go back to the 24h chip
+        picker.addOnNegativeButtonClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                chipGroupFilters.check(R.id.chip24h);
+            }
+        });
+
+        picker.addOnCancelListener(new DialogInterface.OnCancelListener() {
+            @Override
+            public void onCancel(DialogInterface dialog) {
+                chipGroupFilters.check(R.id.chip24h);
+            }
+        });
+
+        picker.show(getSupportFragmentManager(), "date_range");
+    }
+
+    // the picker gives back midnight in UTC, so I take only the date and build it again in local time
+    private long startOfDayLocal(long utcMidnight) {
+        Calendar utc = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+        utc.setTimeInMillis(utcMidnight);
+
+        Calendar local = Calendar.getInstance();
+        local.set(utc.get(Calendar.YEAR), utc.get(Calendar.MONTH),
+                utc.get(Calendar.DAY_OF_MONTH), 0, 0, 0);
+        local.set(Calendar.MILLISECOND, 0);
+        return local.getTimeInMillis();
+    }
+
+    private long endOfDayLocal(long utcMidnight) {
+        Calendar utc = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+        utc.setTimeInMillis(utcMidnight);
+
+        Calendar local = Calendar.getInstance();
+        local.set(utc.get(Calendar.YEAR), utc.get(Calendar.MONTH),
+                utc.get(Calendar.DAY_OF_MONTH), 23, 59, 59);
+        local.set(Calendar.MILLISECOND, 999);
+        return local.getTimeInMillis();
+    }
+
+    // the list and the total are read from the database on another thread
+    private void load() {
+        long from = rangeFrom;
+        long to = rangeTo;
+        executor.execute(new Runnable() {
+            @Override
+            public void run() {
+                List<Expense> expenses = dao.getInRange(from, to);
+
+                Long sum = dao.getTotalInRange(from, to);
+                long value = 0;
+                if (sum != null) {
+                    value = sum;
+                }
+                long totalCents = value;
+
+                // back on the main thread, only there the views can change
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        adapter.setExpenses(expenses);
+                        textTotal.setText(ExpenseAdapter.formatAmount(totalCents));
+                    }
+                });
+            }
+        });
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        executor.shutdown();
+    }
+}
