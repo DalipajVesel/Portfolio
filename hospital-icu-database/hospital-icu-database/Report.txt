@@ -1,0 +1,420 @@
+﻿Εδώ παρουσιάζονται οι νέοι πίνακες που προστέθηκαν και αυτοί που άλλαξαν ώστε το σύστημά μας να υποστηρίζει και την ΜΕΘ. Επίσης θα παραθέσω και τα περιεχόμενα των πινάκων, τον σκοπό του καθενός και τις συσχετίσεις που έχουν με τους άλλους πίνακες.
+
+Συνολικά προστέθηκαν 16 πίνακες και άλλαξαν δύο:
+
+
+1) ICU_Admissions  
+Καταγράφει τις εισαγωγές ασθενών στην ΜΕΘ.
+
+- ICU_Admission_ID (PK)  
+  Μοναδικός αριθμός για κάθε εισαγωγή στη ΜΕΘ.
+- Incident_code (FK -> Incidents.Incident_code)  
+  Συνδέει την εισαγωγή στη ΜΕΘ με το αντίστοιχο περιστατικό.
+- Admission_datetime  
+  Η ημερομηνία και ώρα που ο ασθενής εισήχθη στη ΜΕΘ.
+- Discharge_datetime  
+  Η ημερομηνία και ώρα που ο ασθενής βγήκε από τη ΜΕΘ.
+- Bed_number  
+  Ο αριθμός κλίνης που καταλαμβάνει ο ασθενής μέσα στη ΜΕΘ.
+
+Συσχετίσεις:  
+- Incidents -> ICU_Admissions: 1:N  
+
+
+
+2) Medical_Interventions  
+Καταγραφή νοσηλευτικών/ιατρικών πράξεων που γίνονται σε έναν ασθενή κατά την παραμονή του στη ΜΕΘ.
+
+- Medical_intervention_ID (PK)  
+  Μοναδικό αναγνωριστικό της καταγεγραμμένης πράξης.
+- ICU_Admission_ID (FK -> ICU_Admissions.ICU_Admission_ID)  
+  Σε ποια εισαγωγή ΜΕΘ αντιστοιχεί η πράξη.
+- Medical_intervention_code (FK -> Medical_Intervention_List.Medical_intervention_code)  
+  Κωδικός που περιγράφει τον τύπο της πράξης.
+- Performed_by (FK -> Healthcare_Professional.HP_id)  
+  Ποιος επαγγελματίας υγείας (νοσηλευτής ή γιατρός) εκτέλεσε την πράξη.
+- Intervention_datetime  
+  Η ημερομηνία/ώρα εκτέλεσης της πράξης.
+- Notes  
+  Ελεύθερο κείμενο για σχόλια, ιδιαίτερες παρατηρήσεις, κλπ.
+
+Συσχετίσεις:  
+- ICU_Admissions -> Medical_Interventions: 1:N  
+- Healthcare_Professional -> Medical_Interventions: 1:N  
+- Medical_Intervention_List -> Medical_Interventions: 1:N  
+
+
+
+3) Medical_Intervention_List  
+Λεξικό με τους τύπους πράξεων που υποστηρίζονται στη ΜΕΘ.
+
+- Medical_intervention_code (PK)  
+  Μοναδικός κωδικός της πράξης.
+- Medical_intervention_name  
+  Η ονομασία της πράξης.
+- Description  
+  Περιγραφή της πράξης.
+
+Συσχετίσεις:  
+- Medical_Intervention_List -> Medical_Interventions: 1:N  
+
+INSERT INTO Medical_Intervention_List
+  (medical_intervention_code, medical_intervention_name, description)
+VALUES
+  (1, 'Παρακέντηση δοκιμαστική θώρακος',
+   'Δοκιμαστική θωρακοκέντηση για αφαίρεση δείγματος υγρού από τον υπεζωκότα.'),
+  (2, 'Αιμοκάθαρση',
+   'Εξωσωματική διαδικασία για απομάκρυνση άχρηστων προϊόντων και περίσσειας υγρών.'),
+  (3, 'Τραχειοστομία',
+   'Δημιουργία ανοίγματος στην τραχεία για υποστήριξη αεραγωγού ή αναπνοής.'),
+  (4, 'Καθετηριασμός κύστεως - τοποθέτηση καθετήρα',
+   'Εισαγωγή καθετήρα στην ουροδόχο κύστη για παροχέτευση ούρων.'),
+  (5, 'Γαστροστομία',
+   'Δημιουργία ανοίγματος στο στομάχι μέσω του κοιλιακού τοιχώματος για τη χορήγηση τροφής.'),
+  (6, 'Βρογχοσκόπηση ινοσκοπική',
+   'Ενδοσκοπική εξέταση των αεραγωγών με τη χρήση εύκαμπτου βρογχοσκοπίου με οπτικές ίνες.');
+
+Πηγές:
+Παρακέντηση δοκιμαστική θώρακος :https://www.galinos.gr/web/drugs/main/grhscodes/080000028
+Αιμοκάθαρση: https://www.galinos.gr/web/drugs/main/icdcodes/Y84.1
+Τραχειοστομία: https://www.galinos.gr/web/drugs/main/icdcodes/Z93.0
+Καθετηριασμός κύστεως - τοποθέτηση καθετήρα: https://www.galinos.gr/web/drugs/main/grhscodes/390000033
+Γαστροστομία: https://www.galinos.gr/web/drugs/main/icdcodes/Z93.1
+Βρογχοσκόπηση ινοσκοπική: https://www.galinos.gr/web/drugs/main/grhscodes/430000017
+
+
+
+4) Vital_Signs  
+Αναλυτική καταγραφή των ζωτικών σημείων του ασθενούς ανά χρονική στιγμή στη ΜΕΘ.
+
+- Vital_sign_id (PK)  
+  Μοναδικός αριθμός εγγραφής.
+- ICU_Admission_ID (FK -> ICU_Admissions.ICU_Admission_ID)  
+  Σε ποια εισαγωγή ΜΕΘ αντιστοιχεί το ζωτικό σημείο.
+- Vital_sign_type_code (FK -> Vital_Sign_Types.Vital_sign_type_code)  
+  Ποιο ζωτικό σημείο είναι.
+- Vital_value  
+  Η μετρηθείσα τιμή.
+- Measurement_time  
+  Πότε έγινε η μέτρηση.
+- Measured_by (FK -> Healthcare_Professional.HP_id)  
+  Ποιος επαγγελματίας υγείας πραγματοποίησε και/ή κατέγραψε τη μέτρηση.
+
+Συσχετίσεις:  
+- ICU_Admissions -> Vital_Signs: 1:N  
+- Healthcare_Professional -> Vital_Signs: 1:N  
+- Vital_Sign_Types -> Vital_Signs: 1:N  
+
+
+
+5) Vital_Sign_Types  
+Λεξικό με τους τύπους ζωτικών σημείων που καταγράφονται.
+
+- Vital_sign_type_code (PK)  
+  Μοναδικός κωδικός για το είδος ζωτικού σημείου.
+- Vital_sign_name  
+  Το όνομα του ζωτικού σημείου.
+- Unit_of_measurement  
+  Η μονάδα μέτρησης.
+- Normal_range  
+  Ενδεικτικό φυσιολογικό εύρος τιμών.
+- Description  
+  Οποιαδήποτε επιπλέον περιγραφή ή διευκρίνιση.
+
+Συσχετίσεις:  
+- Vital_Sign_Types -> Vital_Signs: 1:N  
+
+INSERT INTO Vital_Sign_Types
+  (vital_sign_type_code, vital_sign_name, unit_of_measurement, normal_range, description)
+VALUES 
+  (1, 'Αρτηριακή Πίεση (Συστολική)', 'mmHg', '90-120', 'Συστολική πίεση σε mmHg'),
+  (2, 'Αρτηριακή Πίεση (Διαστολική)', 'mmHg', '60-80', 'Διαστολική πίεση σε mmHg'),
+  (3, 'Καρδιακή Συχνότητα (Σφύξεις)', 'bpm', '60-100', 'Παλμοί ανά λεπτό'),
+  (4, 'Θερμοκρασία Σώματος', '°C', '36.5-37.5', 'Θερμοκρασία σώματος από στοματική μέτρηση'),
+  (5, 'Οξυγόνωση Αίματος (SpO2)', '%', '>94%', 'Κορεσμός οξυγόνου μέσω παλμικού οξυμέτρου'),
+  (6, 'Ρυθμός Αναπνοής', 'αναπνοές/λεπτό', '16-20', 'αριθμός αναπνοών σε 1 λεπτό').
+
+Πηγή: https://eclass.uoa.gr/modules/document/file.php/PHED467/%CE%96%CF%89%CF%84%CE%B9%CE%BA%CE%AC%20%CE%A3%CE%B7%CE%BC%CE%B5%CE%AF%CE%B1.pdf
+
+
+
+6) Scores  
+Καταγραφή των αποτελεσμάτων score του ασθενούς με βάση κάποια κλίμακα.
+
+- Score_ID (PK)  
+  Μοναδικός αριθμός εγγραφής score.
+- ICU_Admission_ID (FK -> ICU_Admissions.ICU_Admission_ID)  
+  Σε ποια εισαγωγή ΜΕΘ αναφέρεται το score.
+- Score_type_code (FK -> Score_Types.Score_type_code)  
+  Ποια κλίμακα score χρησιμοποιείται.
+- Score_value  
+  Η τιμή του score.
+- Score_datetime  
+  Ημερομηνία/ώρα καταγραφής του score.
+- Performed_by (FK -> Healthcare_Professional.HP_id)  
+  Ποιος επαγγελματίας υγείας κατέγραψε/υπολόγισε το score.
+- Notes  
+  Σχόλια ή πρόσθετες πληροφορίες.
+
+Συσχετίσεις:  
+- ICU_Admissions -> Scores: 1:N  
+- Healthcare_Professional -> Scores: 1:N  
+- Score_Types -> Scores: 1:N  
+
+
+
+7) Score_Types  
+Λεξικό με τα είδη κλινικών scores.
+
+- Score_type_code (PK)  
+  Μοναδικός κωδικός για το είδος του score.
+- Score_name  
+  Το όνομα του score.
+- Description  
+  Περιγραφή ή λεπτομέρειες για τη συγκεκριμένη κλίμακα score.
+
+Συσχετίσεις:  
+- Score_Types -> Scores: 1:N  
+
+INSERT INTO Score_Types (score_type_code, score_name, description)
+VALUES
+  (1, 'Glasgow Coma Scale (GCS)', 
+   'Κλίμακα αξιολόγησης επιπέδου συνείδησης: αξιολογεί οφθαλμική, λεκτική και κινητική ανταπόκριση.'),
+  (2, 'APACHE II', 
+   'Acute Physiology And Chronic Health Evaluation: πολυπαραγοντική κλίμακα βαρύτητας ασθενή.'),
+  (3, 'SOFA Score', 
+   'Sequential Organ Failure Assessment: παρακολούθηση λειτουργίας έξι οργάνων/συστημάτων και βαθμολόγηση.'),
+  (4, 'RAMSAY Sedation Scale', 
+   'Κλίμακα για την αξιολόγηση του επιπέδου καταστολής σε ΜΕΘ.'),
+  (5, 'RASS', 
+   'Richmond Agitation-Sedation Scale: Κλίμακα για εκτίμηση διέγερσης/καταστολής.').
+
+
+Πηγές:
+Glasgow Coma Scale (GCS): https://mediately.co/gr/tools/GCS
+APACHE II: https://respi-gam.net/node/4458
+SOFA Score: https://en.wikipedia.org/wiki/SOFA_score
+RAMSAY Sedation Scale: https://www.msdmanuals.com/professional/multimedia/table/the-ramsay-sedation-scale
+RASS: https://www.physio-pedia.com/Richmond_Agitation-Sedation_Scale_(RASS)
+Glasgow Outcome Scale (GOS): https://emedicine.medscape.com/article/2172503-overview?form=fpf
+
+
+8) Nurses  
+Ελάχιστος πίνακας για νοσηλευτές. Δεν περιέχει όνομα/επώνυμο.
+
+- Nurse_id (PK)  
+  Μοναδικός κωδικός νοσηλευτή.
+- HP_id (PK, FK -> Healthcare_Professional.HP_id)  
+  Μοναδικό αναγνωριστικό για τον επαγγελματία υγείας.
+
+Συσχετίσεις:  
+- Nurses -> Healthcare_Professional: 1:1  
+- ICU_Nurse_Shifts -> Nurses: N:1
+
+
+
+9) Shifts  
+Καταγραφή των βαρδιών.
+
+- Shift_id (PK)  
+  Μοναδικός κωδικός βάρδιας.
+- Shift_start  
+  Ώρα έναρξης βάρδιας.
+- Shift_end  
+  Ώρα λήξης βάρδιας.
+
+Συσχετίσεις:  
+- Shifts -> ICU_Nurse_Shifts: 1:N  
+
+
+
+10) ICU_Nurse_Shifts  
+Ορίζει ποιος νοσηλευτής είχε ποια βάρδια για κάθε εισαγωγή ΜΕΘ.
+
+- ICU_Nurse_Shift_id (PK)  
+  Μοναδικός κωδικός για την εγγραφή νοσηλευτή-βάρδιας-εισαγωγής.
+- ICU_Admission_id (FK -> ICU_Admissions.ICU_Admission_ID)  
+  Ποια εισαγωγή ΜΕΘ αφορά.
+- Nurse_id (FK -> Nurses.Nurse_id)  
+  Ποιος νοσηλευτής έχει τη βάρδια.
+- Shift_id (FK -> Shifts.Shift_id)  
+  Ποια βάρδια είναι.
+- Shift_date  
+  Ποια ημερομηνία ισχύει η βάρδια.
+
+Συσχετίσεις:  
+- Shifts -> ICU_Nurse_Shifts: 1:N  
+- ICU_Admissions -> ICU_Nurse_Shifts: 1:N  
+- Nurses -> ICU_Nurse_Shifts: 1:N  
+
+
+
+11) ICU_Devices  
+Καταγραφή των μηχανημάτων της ΜΕΘ, συμπεριλαμβανομένης της κατάστασής τους και στοιχείων συντήρησης.
+
+- Device_id (PK)  
+  Μοναδικός κωδικός κάθε συσκευής.
+- Device_type_id (FK -> ICU_Devices_type.Device_type_id)  
+  Ποιας κατηγορίας είναι η συσκευή.
+- Status  
+  Η τρέχουσα κατάσταση (π.χ. "Σε χρήση", "Ελεύθερο", "Σε επισκευή").
+- Maintenance_vendor  
+  Η εταιρεία που έχει αναλάβει τη συντήρηση.
+- Maintenance_start  
+  Αρχή της περιόδου της ενεργης ή τελευταιας συντήρησης.
+- Maintenance_end  
+  Λήξη της περιόδου της ενεργης ή τελευταιας συντήρησης.
+
+Συσχετίσεις:  
+- ICU_Devices_type -> ICU_Devices: 1:N  
+- ICU_Devices -> ICU_Device_Usage: 1:N  
+
+
+
+12) ICU_Devices_type  
+Λεξικό για τις κατηγορίες μηχανημάτων στη ΜΕΘ.
+
+- Device_type_id (PK)  
+  Μοναδικός κωδικός κατηγορίας συσκευής.
+- Device_type_name  
+  Το όνομα του μηχανήματος.
+- Description  
+  Πρόσθετη περιγραφή.
+
+Συσχετίσεις:  
+- ICU_Devices_type -> ICU_Devices: 1:N  
+
+INSERT INTO ICU_Devices_type (Device_type_id, Device_type_name, Description)
+VALUES
+  (1, 'Αναπνευστήρες ΜΕΘ', 'Μηχανήματα που υποστηρίζουν ή αντικαθιστούν την αναπνευστική λειτουργία των ασθενών.'),
+  (2, 'Μόνιτορ παρακολούθησης ζωτικών λειτουργιών', 'Συσκευές που παρακολουθούν συνεχώς παραμέτρους όπως καρδιακός ρυθμός, αρτηριακή πίεση και κορεσμός οξυγόνου.'),
+  (3, 'Αντλίες έγχυσης φαρμάκων', 'Συσκευές που χορηγούν με ακρίβεια φάρμακα και υγρά στους ασθενείς.'),
+  (4, 'Μηχανήματα αιμοκάθαρσης', 'Συσκευές που υποκαθιστούν τη νεφρική λειτουργία σε ασθενείς με νεφρική ανεπάρκεια.'),
+  (5, 'Κινητά ακτινοδιαγνωστικά μηχανήματα', 'Φορητές συσκευές για ακτινολογικές εξετάσεις σε ασθενείς που δεν μπορούν να μετακινηθούν.');
+
+Πηγές:https://www.kat-hosp.gr/wp-content/uploads/2025/02/%CE%95%CE%A3%CE%A9%CE%A4%CE%95%CE%A1%CE%99%CE%9A%CE%9F%CE%A3-%CE%9A%CE%91%CE%9D%CE%9F%CE%9D%CE%99%CE%A3%CE%9C%CE%9F%CE%A3-%CE%9B%CE%95%CE%99%CE%A4%CE%9F%CE%A5%CE%A1%CE%93%CE%99%CE%91%CE%A3-%CE%9C%CE%95%CE%98-%CE%99-%CE%93%CE%9D%CE%91-%CE%9A%CE%91%CE%A4.pdf
+
+
+13) ICU_Device_Usage  
+Πότε χρησιμοποιείται/χρησιμοποιήθηκε μια συγκεκριμένη συσκευή σε έναν ασθενή σε μια εισαγωγή στη ΜΕΘ.
+
+- Device_usage_id (PK)  
+  Μοναδικός αριθμός εγγραφής χρήσης.
+- Device_id (FK -> ICU_Devices.Device_id)  
+  Ποιο μηχάνημα χρησιμοποιείται/χρησιμοποιήθηκε.
+- ICU_Admission_ID (FK -> ICU_Admissions.ICU_Admission_ID)  
+  Σε ποια εισαγωγή ΜΕΘ γίνεται η χρήση.
+- Usage_start  
+  Ημερομηνία/ώρα έναρξης χρήσης.
+- Usage_end  
+  Ημερομηνία/ώρα λήξης χρήσης.
+
+Συσχετίσεις:  
+- ICU_Devices -> ICU_Device_Usage: 1:N  
+- ICU_Admissions -> ICU_Device_Usage: 1:N   
+
+
+
+14) Healthcare_Professional  
+Ενιαίος πίνακας που διατηρεί τα βασικά στοιχεία τον επαγγελματιών υγείας.
+
+- HP_id (PK)  
+  Μοναδικό αναγνωριστικό για τον επαγγελματία υγείας.
+- Name  
+  Το μικρό όνομα του επαγγελματία υγείας.
+- Surname  
+  Το επώνυμό του.
+- role  
+  Δείχνει αν είναι «Nurse» ή «Doctor».
+
+Συσχετίσεις:  
+- Healthcare_Professional -> Medical_Interventions: 1:N  
+- Healthcare_Professional -> Vital_Signs: 1:N  
+- Healthcare_Professional -> Scores: 1:N  
+- Healthcare_Professional -> Medication_Administration: 1:N  
+- Nurses -> Healthcare_Professional: 1:1  
+- Doctor -> Healthcare_Professional: 1:1
+
+
+15) Medication_Administration  
+Αναλυτική παρακολούθηση φαρμάκων: πότε και πώς δόθηκε η κάθε δόση  και από ποιον.
+
+- med_admin_id (PK)  
+  Μοναδικός κωδικός εγγραφής χορήγησης δόσης.
+- Medication_ID (FK -> Medication. Medication_ID)
+  Μοναδικός κωδικός φαρμάκου.
+- ICU_Admission_ID (FK -> ICU_Admissions.ICU_Admission_ID)  
+  Σε ποια εισαγωγή ΜΕΘ αντιστοιχεί αυτή η χορήγηση φαρμάκου.
+- administration_datetime  
+  Πότε ακριβώς χορηγήθηκε η δόση.
+- administered_by (FK -> Nurses.Nurse_id)  
+  Ποιος επαγγελματίας υγείας χορήγησε το φάρμακο.
+- items   
+  Πόσα τεμάχια/μονάδες φαρμάκου (π.χ. 1.5 δισκία).
+- Drug_type_code (FK -> Drug_Types.Drug_type_code)
+  Μοναδικός κωδικός τύπου φαρμάκου.
+- dose  
+  Η δοσολογία.
+- dose_unit  
+  Η μονάδα μέτρησης της δοσολογίας (π.χ. «mg»).
+
+Συσχετίσεις:  
+- Medication -> Medication_Administration: 1:N  
+- Nurses -> Medication_Administration: 1:N  
+- ICU_Admisions -> Medication_Administration: 1:N
+- Drug_Types -> Medication_Administration: 1:N  
+
+
+16) Administration_Routes  
+Λεξικό για την οδό χορήγησης φαρμάκων.
+
+- adm_route_code (PK)  
+  Κωδικός οδού χορήγησης.
+- adm_route_description  
+  Περιγραφή.
+
+Συσχετίσεις:  
+- Administration_Routes -> Medication: 1:N  
+
+INSERT INTO Administration_Routes (adm_route_code, adm_route_description) VALUES
+(1, 'Από το στόμα'),
+(2, 'Δια του ορθού'),
+(3, 'Ενδοφλέβια'),
+(4, 'Ενδομυϊκή'),
+(5, 'Υποδόρια'),
+(6, 'Ενδοδερμική'),
+(7, 'Εισπνεόμενη'),
+(8, 'Διαδερμική'),
+(9, 'Υπογλώσσια'),
+(10, 'Ρινική'),
+(11, 'Οφθαλμική'),
+(12, 'Ωτική'),
+(13, 'Ενδοραχιαία'),
+(14, 'Επισκληρίδιος'),
+(15, 'Ενδοπεριτοναϊκή'),
+(16, 'Ενδοαρθρική'),
+(17, 'Ενδοκαρδιακή'),
+(18, 'Ενδοοστική');
+
+
+Στον πίνακα Medication προσθέσαμε τα πεδία:
+
+- Administration_route (FK -> Administration_Routes.adm_route_code)  
+  Οδός χορήγησης.
+- Medication_id (PK)
+  Μοναδικός κωδικός φαρμάκου
+
+Πρόσθετες συσχετίσεις:  
+- Administration_Routes -> Medication: 1:N
+- Medication_Administration -> Medication: 1:N
+
+
+Ο πίνακας Doctors δεν περιέχει στοιχεία όπως όνομα/επώνυμο, καθώς αυτά καταχωρούνται στον πίνακα Healthcare_Professional.
+
+- Doctor_code (PK)  
+  Μοναδικός κωδικός γιατρού.
+- HP_id (PK, FK -> Healthcare_Professional.HP_id)  
+  Μοναδικό αναγνωριστικό για τον επαγγελματία υγείας.
+
+Πρόσθετες συσχετίσεις:   
+- Doctors -> Healthcare_Professional: 1:1  
