@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Βοήθεια: ΜΕΘ XR Simulator</title>
+    <style>
+        :root {
+            --bg: #0f1629;
+            --card: #1e293b;
+            --border: #334155;
+            --text: #f1f5f9;
+            --muted: #94a3b8;
+            --cyan: #06b6d4;
+            --blue: #3b82f6;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+        }
+
+        .container {
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 40px 24px;
+        }
+
+        h1 {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: var(--muted);
+            font-size: 16px;
+            margin-bottom: 40px;
+        }
+
+        h2 {
+            font-size: 22px;
+            margin: 32px 0 16px;
+            color: var(--cyan);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 8px;
+        }
+
+        h3 {
+            font-size: 17px;
+            margin: 20px 0 8px;
+        }
+
+        p, li {
+            color: var(--muted);
+            margin-bottom: 8px;
+        }
+
+        ul {
+            padding-left: 24px;
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 16px;
+            border: 1px solid var(--border);
+        }
+
+        .card h3 {
+            color: var(--text);
+            margin-top: 0;
+        }
+
+        .hotspot-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        @media (max-width: 600px) {
+            .hotspot-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .hotspot-item {
+            background: var(--card);
+            border-radius: 8px;
+            padding: 14px;
+            border-left: 3px solid var(--cyan);
+        }
+
+        .hotspot-item strong {
+            color: var(--text);
+        }
+
+        .hotspot-item p {
+            margin: 4px 0 0;
+            font-size: 14px;
+        }
+
+        .shortcut {
+            display: inline-block;
+            background: var(--card);
+            border: 1px solid var(--border);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 13px;
+            color: var(--cyan);
+        }
+
+        .tip {
+            background: rgba(6, 182, 212, 0.1);
+            border-left: 3px solid var(--cyan);
+            padding: 12px 16px;
+            border-radius: 0 8px 8px 0;
+            margin: 16px 0;
+        }
+
+        .tip strong {
+            color: var(--cyan);
+        }
+
+        .back-btn {
+            display: inline-block;
+            margin-top: 32px;
+            padding: 10px 24px;
+            background: var(--blue);
+            color: white;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .back-btn:hover {
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Βοήθεια: ΜΕΘ XR Simulator</h1>
+    <p class="subtitle">Οδηγός χρήσης της εφαρμογής κλινικής προσομοίωσης</p>
+
+    <h2>Σκοπός της Εφαρμογής</h2>
+    <p>Η εφαρμογή προσομοιώνει ένα περιβάλλον Μονάδας Εντατικής Θεραπείας (ΜΕΘ) όπου ο χρήστης, ως εκπαιδευόμενος
+        επαγγελματίας υγείας, καλείται να διαχειριστεί κλινικά περιστατικά, να λάβει αποφάσεις και να τεκμηριώσει τις
+        ενέργειές του στον Ηλεκτρονικό Φάκελο Υγείας (EHR).</p>
+
+    <h2>Πλοήγηση στο 3D Περιβάλλον</h2>
+    <div class="card">
+        <h3>Κίνηση</h3>
+        <ul>
+            <li><strong>W / Βέλος Πάνω:</strong> Μπροστά</li>
+            <li><strong>S / Βέλος Κάτω:</strong> Πίσω</li>
+            <li><strong>A / Βέλος Αριστερά:</strong> Αριστερά</li>
+            <li><strong>D / Βέλος Δεξιά:</strong> Δεξιά</li>
+        </ul>
+        <h3>Κάμερα</h3>
+        <ul>
+            <li><strong>Κίνηση ποντικιού (κλικ + σύρσιμο):</strong> Περιστροφή βλέμματος</li>
+        </ul>
+    </div>
+
+    <h2>Ενεργά σημεία (hotspots)</h2>
+    <p>Τα hotspots είναι αντικείμενα στον 3D χώρο με τα οποία μπορείτε να αλληλεπιδράσετε κάνοντας κλικ. Όταν περάσετε
+        τον κέρσορα πάνω τους, εμφανίζεται ετικέτα.</p>
+
+    <div class="hotspot-grid">
+        <div class="hotspot-item">
+            <strong>Μόνιτορ Ζωτικών</strong>
+            <p>Εμφανίζει τα ζωτικά σημεία. Αναβοσβήνει κόκκινο σε συναγερμό.</p>
+        </div>
+        <div class="hotspot-item">
+            <strong>Ασθενής / Κλίνη</strong>
+            <p>Αλληλεπίδραση για αξιολόγηση του ασθενούς.</p>
+        </div>
+        <div class="hotspot-item">
+            <strong>Αναπνευστήρας</strong>
+            <p>Ρυθμίσεις οξυγόνου και αναπνευστικής υποστήριξης.</p>
+        </div>
+        <div class="hotspot-item">
+            <strong>Τερματικό EHR</strong>
+            <p>Ανοίγει τον Ηλεκτρονικό Φάκελο Υγείας.</p>
+        </div>
+        <div class="hotspot-item">
+            <strong>Κουμπί Κλήσης</strong>
+            <p>Κλήση ιατρού / κλιμάκωση.</p>
+        </div>
+    </div>
+
+    <h2>Ζωτικά Σημεία (Vitals HUD)</h2>
+    <p>Στην κορυφή της οθόνης εμφανίζονται τα τρέχοντα ζωτικά σημεία:</p>
+    <div class="card">
+        <ul>
+            <li><strong>HR</strong>: Καρδιακός Ρυθμός (bpm), φυσιολογικό 60-100</li>
+            <li><strong>SpO2</strong>: Κορεσμός Οξυγόνου (%), φυσιολογικό 95-100</li>
+            <li><strong>RR</strong>: Αναπνοές (/min), φυσιολογικό 12-20</li>
+            <li><strong>BP</strong>: Αρτηριακή Πίεση (mmHg)</li>
+            <li><strong>Temp</strong>: Θερμοκρασία (°C), φυσιολογικό 36.1-37.5</li>
+        </ul>
+    </div>
+    <div class="tip"><strong>Tip:</strong> Αν το SpO2 πέσει κάτω από 90%, θα ενεργοποιηθεί αυτόματος συναγερμός!</div>
+
+    <h2>Ροή Σεναρίου</h2>
+    <div class="card">
+        <h3>Τύποι Κόμβων:</h3>
+        <ul>
+            <li><strong>Μήνυμα (Message):</strong> Πληροφοριακό κείμενο, πατήστε «Συνέχεια».</li>
+            <li><strong>Απόφαση (Decision):</strong> Επιλέξτε μία από τις διαθέσιμες ενέργειες. Μερικές αποφάσεις έχουν
+                χρονικό όριο!
+            </li>
+            <li><strong>Πύλη Τεκμηρίωσης (Gate):</strong> Δεν μπορείτε να προχωρήσετε χωρίς να συμπληρώσετε τα
+                απαιτούμενα πεδία στο EHR.
+            </li>
+            <li><strong>Τέλος (End):</strong> Εμφανίζεται η οθόνη απολογισμού.</li>
+        </ul>
+    </div>
+
+    <h2>Ηλεκτρονικός Φάκελος Υγείας (EHR)</h2>
+    <p>Ο EHR περιέχει 4 καρτέλες:</p>
+    <div class="card">
+        <ul>
+            <li><strong>Ζωτικά Σημεία:</strong> Τρέχουσες τιμές και ιστορικό.</li>
+            <li><strong>Αξιολόγηση:</strong> Φόρμα κλινικής αξιολόγησης (παρατηρήσεις, χρώμα δέρματος, συνείδηση).</li>
+            <li><strong>Παρεμβάσεις:</strong> Καταγραφή ρυθμίσεων (συσκευή, FiO2, ροή).</li>
+            <li><strong>Επικοινωνία:</strong> Ημερολόγιο κλήσεων/επικοινωνίας.</li>
+        </ul>
+    </div>
+    <div class="tip"><strong>Σημαντικό:</strong> Στα Documentation Gates, πατήστε «Αποθήκευση» σε κάθε φόρμα πριν τον
+        «Έλεγχο Τεκμηρίωσης».
+    </div>
+
+    <h2>Χρονικά Όρια (Timeout)</h2>
+    <p>Μερικές αποφάσεις έχουν χρονικό όριο. Μια μπάρα αντίστροφης μέτρησης εμφανίζεται κάτω από τις επιλογές. Αν
+        εκπνεύσει ο χρόνος, η κατάσταση του ασθενούς μπορεί να επιδεινωθεί και θα χαθούν πόντοι.</p>
+
+    <h2>Απολογισμός (Debrief)</h2>
+    <p>Στο τέλος του σεναρίου εμφανίζεται:</p>
+    <div class="card">
+        <ul>
+            <li><strong>Σκορ:</strong> Βαθμολογία βάσει αποφάσεων και τεκμηρίωσης.</li>
+            <li><strong>Διαδρομή αποφάσεων:</strong> Όλοι οι κόμβοι που περάσατε.</li>
+            <li><strong>Τεκμηρίωση:</strong> Τι ολοκληρώθηκε και τι παραλήφθηκε.</li>
+            <li><strong>Εξαγωγή:</strong> Λήψη αναφοράς σε JSON.</li>
+        </ul>
+    </div>
+
+    <h2>Φόρτωση Νέου Σεναρίου</h2>
+    <p>Από την αρχική οθόνη, πατήστε "Φόρτωση Σεναρίου από Αρχείο" και επιλέξτε ένα αρχείο .json. Το σενάριο πρέπει να
+        ακολουθεί τη δομή του Decision Tree JSON schema.</p>
+
+    <h2>Κάτω Γραμμή Εργαλείων</h2>
+    <div class="card">
+        <ul>
+            <li><strong>EHR:</strong> Ανοίγει/κλείνει τον Ηλεκτρονικό Φάκελο.</li>
+            <li><strong>Log:</strong> Εμφανίζει το ιστορικό ενεργειών. Εξαγωγή σε JSON.</li>
+            <li><strong>Help:</strong> Ανοίγει αυτή τη σελίδα βοήθειας.</li>
+            <li><strong>Reset:</strong> Επανεκκινεί το σενάριο.</li>
+        </ul>
+    </div>
+
+    <h2>Συντομεύσεις</h2>
+    <div class="card">
+        <ul>
+            <li><span class="shortcut">W</span><span class="shortcut">A</span><span class="shortcut">S</span><span
+                    class="shortcut">D</span> : Κίνηση
+            </li>
+            <li>Αριθμοί <span class="shortcut">1</span> <span class="shortcut">2</span> στα κουμπιά αποφάσεων
+                αντιστοιχούν στις επιλογές.
+            </li>
+        </ul>
+    </div>
+
+    <a href="index.html" class="back-btn">Επιστροφή στην Εφαρμογή</a>
+</div>
+</body>
+</html>

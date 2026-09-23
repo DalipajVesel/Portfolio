@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ΜΕΘ XR Simulator - Κλινική Προσομοίωση</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="libs/babylon.js"></script>
+    <script src="libs/babylonjs.loaders.min.js"></script>
+</head>
+<body>
+<div id="loading-screen">
+    <div class="loading-content">
+        <h1>ΜΕΘ XR Simulator</h1>
+        <p>Φόρτωση...</p>
+    </div>
+</div>
+
+<!-- Start screen -->
+<div id="start-screen" class="screen hidden">
+    <div class="start-content">
+        <div class="start-header">
+            <h1>ΜΕΘ XR Simulator</h1>
+            <p class="subtitle">Διαδραστική Κλινική Προσομοίωση & Ψηφιακή Τεκμηρίωση</p>
+        </div>
+        <div class="scenario-select">
+            <h2>Επιλογή Σεναρίου</h2>
+            <div class="scenario-list">
+                <div class="scenario-card active" data-scenario="scenarios/hypoxia.json">
+                    <h3>Διαχείριση Υποξαιμίας & Αναπνευστήρα</h3>
+                    <p>Σενάριο διαχείρισης πτώσης κορεσμού οξυγόνου.</p>
+                </div>
+                <div class="scenario-card" data-scenario="scenarios/asthma.json">
+                    <h3>Οξεία Κρίση Άσθματος</h3>
+                    <p>Σενάριο διαχείρισης σοβαρού βρογχόσπασμου & οξυγονοθεραπείας.</p>
+                </div>
+            </div>
+            <div class="file-upload-area">
+                <label for="scenarioFileInput" class="upload-btn">Φόρτωση Σεναρίου από Αρχείο (.json)</label>
+                <input type="file" id="scenarioFileInput" accept=".json" style="display:none">
+                <span id="uploadedFileName" class="uploaded-name"></span>
+            </div>
+        </div>
+        <button class="btn-primary btn-large" id="btnStartScenario">Εκκίνηση Σεναρίου</button>
+        <button class="btn-secondary" onclick="window.open('help.html','_blank')">Βοήθεια</button>
+    </div>
+</div>
+
+<!-- 3D canvas -->
+<canvas id="renderCanvas"></canvas>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+    <div id="hud-top-bar">
+        <div class="vital-display" id="vitalHR">
+            <span class="vital-label">HR</span>
+            <span class="vital-value" id="valHR">--</span>
+            <span class="vital-unit">bpm</span>
+        </div>
+        <div class="vital-display spo2" id="vitalSpO2">
+            <span class="vital-label">SpO2</span>
+            <span class="vital-value" id="valSpO2">--</span>
+            <span class="vital-unit">%</span>
+        </div>
+        <div class="vital-display" id="vitalRR">
+            <span class="vital-label">RR</span>
+            <span class="vital-value" id="valRR">--</span>
+            <span class="vital-unit">/min</span>
+        </div>
+        <div class="vital-display" id="vitalBP">
+            <span class="vital-label">BP</span>
+            <span class="vital-value" id="valBP">--</span>
+            <span class="vital-unit">mmHg</span>
+        </div>
+        <div class="vital-display" id="vitalTemp">
+            <span class="vital-label">Temp</span>
+            <span class="vital-value" id="valTemp">--</span>
+            <span class="vital-unit">°C</span>
+        </div>
+    </div>
+
+    <div id="narrative-panel" class="hidden">
+        <div id="narrativeText"></div>
+        <div id="narrativeOptions"></div>
+        <div id="narrativeTimeout" class="hidden">
+            <div class="timeout-bar">
+                <div class="timeout-bar-fill" id="timeoutBarFill"></div>
+            </div>
+            <span id="timeoutLabel"></span>
+        </div>
+        <button class="btn-primary" id="btnNarrativeContinue" style="display:none">Συνέχεια</button>
+    </div>
+
+    <div id="gate-overlay" class="hidden">
+        <div class="gate-content">
+            <h2 id="gateTitle">Documentation Gate</h2>
+            <p id="gateDescription"></p>
+            <p id="gateBlockedMsg" class="gate-blocked"></p>
+            <button class="btn-primary" id="btnOpenEHRFromGate">Άνοιγμα EHR</button>
+            <button class="btn-secondary" id="btnCheckGate">Έλεγχος Τεκμηρίωσης</button>
+        </div>
+    </div>
+
+    <div id="hud-bottom-bar">
+        <button class="hud-btn" id="btnEHR" title="Ηλεκτρονικός Φάκελος Υγείας">EHR</button>
+        <button class="hud-btn" id="btnLog" title="Ιστορικό Ενεργειών">Log</button>
+        <button class="hud-btn" onclick="window.open('help.html','_blank')" title="Βοήθεια">Help</button>
+        <button class="hud-btn btn-danger-small" id="btnReset" title="Επανεκκίνηση">Reset</button>
+    </div>
+</div>
+
+<!-- EHR panel -->
+<div id="ehr-panel" class="hidden">
+    <div class="ehr-header">
+        <h2>Ηλεκτρονικός Φάκελος Υγείας (EHR)</h2>
+        <button class="btn-close" id="btnCloseEHR">✕</button>
+    </div>
+    <div class="ehr-tabs">
+        <button class="ehr-tab active" data-tab="vitals">Ζωτικά Σημεία</button>
+        <button class="ehr-tab" data-tab="assessment">Αξιολόγηση</button>
+        <button class="ehr-tab" data-tab="intervention">Παρεμβάσεις</button>
+        <button class="ehr-tab" data-tab="communication">Επικοινωνία</button>
+    </div>
+    <div class="ehr-body">
+        <div class="ehr-tab-content active" id="tab-vitals">
+            <h3>Τρέχοντα Ζωτικά Σημεία</h3>
+            <table class="vitals-table">
+                <thead>
+                <tr>
+                    <th>Παράμετρος</th>
+                    <th>Τιμή</th>
+                </tr>
+                </thead>
+                <tbody id="ehrVitalsTable"></tbody>
+            </table>
+            <h3>Τάσεις (Ιστορικό)</h3>
+            <div id="vitalsHistory" class="vitals-history"></div>
+        </div>
+        <div class="ehr-tab-content" id="tab-assessment">
+            <h3>Κλινική Αξιολόγηση</h3>
+            <form id="form-assessment_form" class="ehr-form"></form>
+        </div>
+        <div class="ehr-tab-content" id="tab-intervention">
+            <h3>Παρεμβάσεις / Ρυθμίσεις</h3>
+            <form id="form-intervention_form" class="ehr-form"></form>
+        </div>
+        <div class="ehr-tab-content" id="tab-communication">
+            <h3>Ημερολόγιο Επικοινωνίας</h3>
+            <form id="form-communication_log" class="ehr-form"></form>
+        </div>
+    </div>
+</div>
+
+<!-- Log panel -->
+<div id="log-panel" class="hidden">
+    <div class="log-header">
+        <h2>Ιστορικό Ενεργειών</h2>
+        <div>
+            <button class="btn-secondary btn-sm" id="btnExportLog">Εξαγωγή JSON</button>
+            <button class="btn-close" id="btnCloseLog">✕</button>
+        </div>
+    </div>
+    <div class="log-body" id="logBody"></div>
+</div>
+
+<div id="hotspot-tooltip" class="hidden"></div>
+
+<div id="toast-container"></div>
+
+<!-- Debrief -->
+<div id="debrief-screen" class="screen hidden">
+    <div class="debrief-content">
+        <h1>Απολογισμός Σεναρίου</h1>
+        <div class="debrief-score-section">
+            <div class="debrief-score-circle">
+                <span id="debriefScore">0</span>
+            </div>
+        </div>
+        <div class="debrief-section">
+            <h2>Διαδρομή Αποφάσεων</h2>
+            <div id="debriefPath" class="debrief-path"></div>
+        </div>
+        <div class="debrief-section">
+            <h2>Τεκμηρίωση</h2>
+            <div id="debriefDocs" class="debrief-docs"></div>
+        </div>
+        <div class="debrief-actions">
+            <button class="btn-primary btn-large" id="btnDebriefRestart">Νέα Εκτέλεση</button>
+            <button class="btn-secondary" id="btnDebriefExport">Εξαγωγή Αναφοράς</button>
+            <button class="btn-secondary" id="btnDebriefMenu">Αρχική</button>
+        </div>
+    </div>
+</div>
+
+<script src="js/logger.js"></script>
+<script src="js/scenario-engine.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/ehr.js"></script>
+<script src="js/debrief.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
