@@ -25,5 +25,3 @@ build and run it.
 - [hospital-icu-database](hospital-icu-database): database schema extension for an intensive care unit
 - [motor-fault-detection](motor-fault-detection): op-amp circuit that finds bearing wear from vibrations, simulated in TINA-TI
 - [ai-in-education](ai-in-education): group literature review on AI chatbots in universities
-
-Most code comments and program messages are in Greek.
