@@ -4,7 +4,9 @@ A small search engine over Wikipedia articles: a crawler, text
 preprocessing, an inverted index, three retrieval models (Boolean, TF-IDF
 with cosine similarity, BM25) and an evaluation with precision, recall, F1
 score and mean average precision. interface_search_engine.ipynb is a search
-box made with ipywidgets.
+box made with ipywidgets. Report.ipynb is my original submission and goes
+through all the steps with my notes in Greek. evaluate.py is a newer
+version of the evaluation.
 
 Information Retrieval course.
 
